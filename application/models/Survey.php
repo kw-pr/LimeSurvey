@@ -182,6 +182,10 @@ class Survey extends LSActiveRecord
             $this->googleanalyticsapikeysetting = "G";
         }
 
+        $this->allowprev = Yii::app()->getConfig('survey_allowprev');
+        $this->showxquestions = Yii::app()->getConfig('survey_showxquestions');
+        $this->tokenanswerspersistence = Yii::app()->getConfig('survey_tokenanswerspersistence');
+        $this->sendconfirmation = Yii::app()->getConfig('survey_sendconfirmation');
 
         $this->template = Template::templateNameFilter(getGlobalSetting('defaulttheme'));
         $validator = new LSYii_Validators;
