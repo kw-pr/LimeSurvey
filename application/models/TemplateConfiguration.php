@@ -632,7 +632,9 @@ class TemplateConfiguration extends TemplateConfig
         $oTemplate->setOptions();
         $oTemplate->setOptionInheritance();
 
-        $renderArray['oParentOptions'] = (array) $oTemplate->oOptions;
+        //We add some extra values to the option page
+        //This is just a dirty hack, and somewhere in the future we will correct it
+        $renderArray['oParentOptions'] = array_merge(((array) $oTemplate->oOptions), array('packages_to_load' =>  $oTemplate->packages_to_load, 'files_css' => $oTemplate->files_css));
 
         return Yii::app()->twigRenderer->renderOptionPage($oTemplate, $renderArray);
     }
@@ -769,14 +771,24 @@ class TemplateConfiguration extends TemplateConfig
             $oMotherTemplate = $oRTemplate->oMotherTemplate;
             if (!($oMotherTemplate instanceof TemplateConfiguration)) {
                 //throw new Exception("can't find a template for template '{$oRTemplate->template_name}' for path '$sPath'.");
-                TemplateConfiguration::uninstall($this->template_name);
-                Yii::app()->setFlashMessage(sprintf(gT("Theme '%s' has been uninstalled because it's not compatible with this LimeSurvey version."), $this->template_name), 'error');
-                Yii::app()->getController()->redirect(array("admin/themeoptions"));
+                $this->uninstallIncorectTheme($this->template_name);
                 break;
             }
             $oRTemplate = $oMotherTemplate;
         }
         return $oRTemplate;
+    }
+
+    /**
+     * Uninstall a theme and, display error message, and redirect to theme list
+     * @param string $sTemplateName     
+     */
+    protected function uninstallIncorectTheme($sTemplateName)
+    {
+        TemplateConfiguration::uninstall($sTemplateName);
+        Yii::app()->setFlashMessage(sprintf(gT("Theme '%s' has been uninstalled because it's not compatible with this LimeSurvey version."), $sTemplateName), 'error');
+        Yii::app()->getController()->redirect(array("admin/themeoptions"));
+        Yii::app()->end();
     }
 
     /**
@@ -852,7 +864,13 @@ class TemplateConfiguration extends TemplateConfig
         if (isset($aOptions[$key])) {
             $value = $aOptions[$key];
             if ($value === 'inherit') {
-                return $this->getParentConfiguration()->getOptionKey($key);
+                $oParentConfig = $this->getParentConfiguration();
+                if ($oParentConfig->id != $this->id){
+                    return $this->getParentConfiguration()->getOptionKey($key);
+                }else{
+                    $this->uninstallIncorectTheme($this->template_name);
+                }
+
             }
             return  $value;
         } else {
@@ -1010,4 +1028,24 @@ class TemplateConfiguration extends TemplateConfig
         return $sAttribute;
     }
 
+    /**
+     * @return string
+     */
+    public function getTemplateAndMotherNames()
+    {
+        $oRTemplate = $this;
+        $sTemplateNames = $this->sTemplateName;
+
+        while (!empty($oRTemplate->oMotherTemplate)) {
+
+            $sTemplateNames .= ' ' . $oRTemplate->template->extends;
+            $oRTemplate      = $oRTemplate->oMotherTemplate;
+            if (!($oRTemplate instanceof TemplateConfiguration)) {
+                // Throw alert: should not happen
+                break;
+            }
+        }
+
+        return $sTemplateNames;
+    }
 }

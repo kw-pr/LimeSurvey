@@ -181,7 +181,10 @@ class Template extends LSActiveRecord
         if (!empty($sTemplateName)) {
             setGlobalSetting('defaulttheme', $sTemplateName);
             $sDefaultTemplate = getGlobalSetting('defaulttheme');
-            Yii::app()->setFlashMessage(sprintf(gT("Default survey theme %s is not installed. Now %s is the new default survey theme"), $sRequestedTemplate, $sTemplateName), 'error');
+            
+            if(method_exists(Yii::app(), 'setFlashMessage'))
+                Yii::app()->setFlashMessage(sprintf(gT("Default survey theme %s is not installed. Now %s is the new default survey theme"), $sRequestedTemplate, $sTemplateName), 'error');
+            
             self::$aNamesFiltered[$sTemplateName] = $sTemplateName;
             return $sTemplateName;
         } else {
@@ -338,6 +341,10 @@ class Template extends LSActiveRecord
         $otherFiles = array();
         if (file_exists($filesDir) && $handle = opendir($filesDir)) {
             while (false !== ($file = readdir($handle))) {
+                // The file '..' can mess with open_basedir permissions.
+                if ($file == '..' || $file == '.') {
+                    continue;
+                }
                 if (!is_dir($file)) {
                     $otherFiles[] = array("name" => $file);
                 }
@@ -513,6 +520,15 @@ class Template extends LSActiveRecord
 
 
         return self::$instance;
+    }
+
+    /**
+     * Sets self::$instance to null;
+     * Needed for unit test.
+     */
+    public static function resetInstance()
+    {
+        self::$instance = null;
     }
 
     /**

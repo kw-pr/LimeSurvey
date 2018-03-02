@@ -31,7 +31,13 @@ var RankingQuestion = function (options) {
         $('#sortable-choice-' + questionId).sortable({
             group: "sortable-" + questionId,
             ghostClass: "ls-rank-placeholder",
-            sort: false
+            sort: false,
+            onMove: function(ev) {
+                if (max_answers > 0 && $('#sortable-rank-' + questionId + ' li').length >= max_answers) {
+                    //sortableAlert();
+                    return false;
+                }
+            }
         });
 
         $('#sortable-rank-' + questionId).sortable({

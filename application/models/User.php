@@ -131,6 +131,21 @@ class User extends LSActiveRecord
     }
 
     /**
+     * @return string
+     */
+    public function getDateFormat()
+    {
+        $dateFormat = getDateFormatData(Yii::app()->session['dateformat']);
+        return $dateFormat['phpdate'];
+    }    
+
+    public function getFormattedDateCreated()
+    {
+        $dateCreated = $this->created;
+        $date = new DateTime($dateCreated);
+        return $date->format($this->dateFormat);
+    }    
+    /**
      * Returns onetime password
      *
      * @access public
@@ -479,6 +494,13 @@ class User extends LSActiveRecord
             "name" =>"parentUserName",
             "header" => gT("Created by"),
         );
+        
+        $cols[] = array(
+            "name" =>"created",
+            "header" => gT("Created on"),
+            "value" => '$data->formattedDateCreated',
+            
+        );
         return $cols;
     }
 
@@ -509,6 +531,19 @@ class User extends LSActiveRecord
                 'pageSize' => $pageSize
             )
         ));
+    }
+
+    /** @inheritdoc */
+    public function beforeSave()
+    {
+        switch(Yii::app()->db->getDriverName()) {
+            case 'sqlsrv':
+            case 'mssql': // Deprecated ?
+                $this->one_time_pw = new CDbExpression("CONVERT(VARBINARY(MAX), :one_time_pw)", array(':one_time_pw' => $this->one_time_pw));
+            default:
+                // Nothing to do
+        }
+        return parent::beforeSave();
     }
 
 }
