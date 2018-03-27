@@ -219,11 +219,6 @@ class SurveyAdmin extends Survey_Common_Action
         //Yii::app()->loadHelper('text');
         Yii::app()->loadHelper('surveytranslator');
 
-        Yii::app()->session['FileManagerContext'] = "edit:survey:{$iSurveyID}";
-
-        Yii::app()->loadHelper('/admin/htmleditor');
-        initKcfinder();
-
         $esrow = self::_fetchSurveyInfo('editsurvey', $iSurveyID);
 
         $aData          = array();
@@ -940,6 +935,15 @@ class SurveyAdmin extends Survey_Common_Action
      * New system of rendering content
      * Based on yii submenu rendering
      *
+     * @uses self::_generalTabEditSurvey()
+     * @uses self::_pluginTabSurvey()
+     * @uses self::_tabPresentationNavigation()
+     * @uses self::_tabPublicationAccess()
+     * @uses self::_tabNotificationDataManagement()
+     * @uses self::_tabTokens()
+     * @uses self::_tabPanelIntegration()
+     * @uses self::_tabResourceManagement()
+     * 
      * @param int $iSurveyID
      * @param string $subaction
      * @return void
@@ -972,7 +976,6 @@ class SurveyAdmin extends Survey_Common_Action
 
         $templateData = array_merge($this->_getGeneralTemplateData($iSurveyID), $templateData);
         $this->_registerScriptFiles();
-        Yii::app()->loadHelper("admin/htmleditor");
 
         //Start collecting aData
         $aData['surveyid'] = $iSurveyID;
@@ -1651,6 +1654,25 @@ class SurveyAdmin extends Survey_Common_Action
         return $aData;
     }
 
+    /** 
+     * 
+     * survey::_pluginTabSurvey() 
+     * Load "Simple Plugin" page in specific survey. 
+     * @param Survey $survey 
+     * @return mixed 
+     * 
+     * This method is called via call_user_func in self::rendersidemenulink()
+     * @SuppressWarnings(PHPMD.UnusedPrivateMethod)
+     */ 
+    private function _pluginTabSurvey($survey) 
+    { 
+        $aData = array(); 
+        $beforeSurveySettings = new PluginEvent('beforeSurveySettings'); 
+        $beforeSurveySettings->set('survey', $survey->sid); 
+        App()->getPluginManager()->dispatchEvent($beforeSurveySettings); 
+        $aData['pluginSettings'] = $beforeSurveySettings->get('surveysettings'); 
+        return $aData; 
+    } 
     /**
      * survey::_tabPresentationNavigation()
      * Load "Presentation & navigation" tab.
@@ -1735,7 +1757,7 @@ class SurveyAdmin extends Survey_Common_Action
      * @param Survey $survey survey
      * @return mixed
      */
-    private function _tabResourceManagement($survey)
+    private function _tabResourceManagement($oSurvey)
     {
         global $sCKEditorURL;
 
@@ -1746,7 +1768,7 @@ class SurveyAdmin extends Survey_Common_Action
         }
 
         $disabledIfNoResources = '';
-        if (hasResources($survey->sid, 'survey') === false) {
+        if (hasResources($oSurvey->sid, 'survey') === false) {
             $disabledIfNoResources = " disabled='disabled'";
         }
         $aData = [];
@@ -1754,6 +1776,11 @@ class SurveyAdmin extends Survey_Common_Action
         $aData['disabledIfNoResources'] = $disabledIfNoResources;
         $aData['sCKEditorURL'] = $sCKEditorURL;
         $aData['noform'] = true;
+
+        //KCFINDER SETTINGS
+        Yii::app()->session['FileManagerContext'] = "edit:survey:{$oSurvey->sid}";
+        Yii::app()->loadHelper('admin.htmleditor');
+        initKcfinder();
 
         return $aData;
     }

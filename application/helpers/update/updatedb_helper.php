@@ -2195,6 +2195,19 @@ function db_upgrade_all($iOldDBVersion, $bSilent = false)
             $oDB->createCommand()->update('{{settings_global}}', ['stg_value'=>347], "stg_name='DBVersion'");
             $oTransaction->commit();
         }
+        /**
+         * Adding security message and settings
+         */
+        if ($iOldDBVersion < 348) {
+            $oTransaction = $oDB->beginTransaction();
+            $oDB->createCommand()->addColumn('{{surveys_languagesettings}}', 'surveyls_policy_notice', 'text');
+            $oDB->createCommand()->addColumn('{{surveys_languagesettings}}', 'surveyls_policy_error', 'text');
+            $oDB->createCommand()->addColumn('{{surveys_languagesettings}}', 'surveyls_policy_notice_label', 'string(192)');
+            $oDB->createCommand()->addColumn('{{surveys}}', 'showsurveypolicynotice', 'integer DEFAULT 0');
+
+            $oDB->createCommand()->update('{{settings_global}}', ['stg_value'=>348], "stg_name='DBVersion'");
+            $oTransaction->commit();
+        }
 
     } catch (Exception $e) {
         Yii::app()->setConfig('Updating', false);
@@ -2238,6 +2251,8 @@ function db_upgrade_all($iOldDBVersion, $bSilent = false)
     // Inform  superadmin about update
     $superadmins = User::model()->getSuperAdmins();
     $currentDbVersion = $oDB->createCommand()->select('stg_value')->from('{{settings_global}}')->where("stg_name=:stg_name", array('stg_name'=>'DBVersion'))->queryRow();
+    // Update the global config object because it is caching the old version
+    setGlobalSetting('DBVersion', $currentDbVersion['stg_value']);
 
     Notification::broadcast(array(
         'title' => gT('Database update'),
@@ -3093,15 +3108,19 @@ function upgradeSurveys177()
 function upgradeTokens176()
 {
     $oDB = Yii::app()->db;
-    $arSurveys = Survey::model()->findAll();
+    $arSurveys = $oDB
+    ->createCommand()
+    ->select('*')
+    ->from('surveys')
+    ->queryAll();
     // Fix any active token tables
     foreach ( $arSurveys as $arSurvey )
     {
-        $sTokenTableName='tokens_'.$arSurvey->sid;
+        $sTokenTableName='tokens_'.$arSurvey['sid'];
         if (tableExists($sTokenTableName))
         {                                        
             $aColumnNames=$aColumnNamesIterator=$oDB->schema->getTable('{{'.$sTokenTableName.'}}')->columnNames;
-            $aAttributes = $arSurvey->tokenAttributes;
+            $aAttributes = $arSurvey['tokenAttributes'];
             foreach($aColumnNamesIterator as $sColumnName)
             {
                 // Check if an old atttribute_cpdb column exists in that token table
@@ -3121,7 +3140,7 @@ function upgradeTokens176()
                     }
                 }
             }
-            Survey::model()->updateByPk($arSurvey->sid, array('attributedescriptions' => serialize($aAttributes)));
+            $oDB->createCommand()->update('{{surveys}}',array('attributedescriptions'=>serialize($aAttributes)),"sid=".$arSurvey['sid']);
         }
     }
     unset($arSurveys);

@@ -35,6 +35,137 @@ Thank you to everyone who helped with this new release!
 CHANGE LOG
 ------------------------------------------------------
 
+Changes from 3.5.3 (build 180316) to 3.5.4 (build 180320) Mar 20, 2018
+-Fixed issue #13476: Unable to send individual remind and invite mails (markusfluer)
+-Fixed issue #13480: Assessments: wrong windows size and crash after adding a rule (LouisGac)
+-Fixed issue #13483: Unable to enter 0.000000001 for numeric value (Carsten Schmitz)
+-Fixed issue #13486: Language dropdown must be at first page when create survey (markusfluer)
+-Fixed issue #13494: Problem when activating force_xmlsettings_for_survey_rendering (markusfluer)
+-Fixed issue: Calculations sometimes fail in EM (markusfluer)
+-Fixed issue: Multiple problems regarding question reorder (markusfluer)
+-Fixed issue: PDF download in statistics not possible anymore (markusfluer)
+-Fixed issue: Unable to log in to MSSQL when updating from 2.05 or older (Carsten Schmitz)
+-Fixed issue: Update from Dbversion 164 or earlier stuck at version 175 (Carsten Schmitz)
+-Fixed issue: Ckeditor not showing on IE (kw-pr)
+#Updated translation: Arabic by iceclimber81
+#Updated translation: Catalan by qualitatuvic
+#Updated translation: Danish by LS_fan
+#Updated translation: Dutch by zfocuz, Han
+#Updated translation: Dutch (Informal) by zfocuz, Han
+#Updated translation: French (France) by arnaud21
+#Updated translation: German by c_schmitz, markusfluer
+#Updated translation: German by markusfluer, c_schmitz
+#Updated translation: German (Informal) by c_schmitz
+#Updated translation: German (Informal) by markusfluer, c_schmitz
+#Updated translation: Hungarian by kkd
+#Updated translation: Japanese by nomoto
+#Updated translation: Myanmar by AlexEDGE1
+#Updated translation: Norwegian (BokmÃ¥l) by pmonstad
+#Updated translation: Polish by elissa
+#Updated translation: Polish (Informal) by elissa
+#Updated translation: Spanish (Spain) by Dhel210, aesteban
+
+Changes from 3.5.2 (build 180315) to 3.5.3 (build 180316) Mar 16, 2018
+-Fixed issue #13372: Behavior of reset in mail templates (markusfluer)
+-Fixed issue: Database upgrade doesn't work
+
+Changes from 3.5.1 (build 180312) to 3.5.2 (build 180315) March 15, 2018
+-Fixed issue #13375: Brackets [ ] in printer friendly exports (markusfluer)
+-Fixed issue #13422: Dropdown menu in portuguese internal server error (markusfluer)
+-Fixed issue #13473: Use of exclusive option hangs browser page (markusfluer)
+-Fixed issue: Simply uploading an image in a standard theme wasn't working (markusfluer)
+-Fixed issue: Sporadic update error message on login right after upgrade (Carsten Schmitz)
+-Fixed issue: Relay on surveymodel rather than on inherited setting (markusfluer)
+#Updated translation: Catalan by qualitatuvic
+#Updated translation: Dutch (Informal) by Han 
+#Updated translation: Dutch by Han 
+#Updated translation: French (France) by b00z00, arnaud21
+#Updated translation: Hungarian by kkd 
+#Updated translation: Italian (Informal) by lfanfoni
+#Updated translation: Italian by lfanfoni
+#Updated translation: Norwegian (Bokmål) by pmonsta
+#Updated translation: Polish (Informal) by elissa
+#Updated translation: Polish by elissa
+
+Changes from 3.5.0 (build 180309) to 3.5.1 (build 180312) Mar 12, 2018
+-Fixed issue #12715: Behavior change for numericalmultiple Slider default value when 0 or null Upgraded PHP version (markusfluer)
+-Fixed issue #13247: Missing translation in beginner tour (markusfluer)
+-Fixed issue #13464: Invalid SQL in "mail_registered_participants" (Olle Haerstedt)
+-Fixed issue #13467: Untranslated last element in bread crumbs (markusfluer)
+-Fixed issue #13469: 'Check Data integrity' throws Internal server error (Olle Haerstedt)
+-Fixed issue: Cannot install on MSSQL server (Carsten Schmitz)
+-Fixed issue: Multiple inSurveyView height related problems (markusfluer)
+
+Changes from 3.4.4 (build 180305) to 3.5.0 (build 180309) Mar 9, 2018
+ -Fixed issue #13461: Unable to start survey (markusfluer)
+ -Fixed issue #13204: Even with good settings : browse ressources show "You don't have Permission to browse this server" (markusfluer)
+ -Fixed issue #13268: Impossibilité de désactiver un questionnaire (markusfluer)
+ -Fixed issue #13366: Extending a theme creates world writable directories (LouisGac)
+ -Fixed issue #13371: missing translation (markusfluer)
+ -Fixed issue #13419: Re-ordering questions and groups using Structure drag & drop fails (markusfluer)
+ -Fixed issue #13436: missing translation (markusfluer)
+ -Fixed issue #13440: Quota, Postgress cant add (markusfluer)
+ -Fixed issue #13443: Logic error by using an Eclusive Option in a multiple choice question (markusfluer)
+ -Fixed issue #13444: Exclusive Option in Multiple Choice question makes not exclusive options invisible instead of non selectable (markusfluer)
+ -Fixed issue #13445: Out of Bound error when exporting marked responses from response list (Carsten Schmitz)
+ -Fixed issue #13446: Unable to see "simple plugin" (markusfluer)
+ -Fixed issue #13453: Small display issue in email global settings (Carsten Schmitz)
+ -Fixed issue: 13450: DateTimePicker interface design problem (markusfluer)
+ -Fixed issue: Installation broken (markusfluer)
+ -Fixed issue: Session lifetime setting visible in global settings even though it is only supported for DB sessions (Carsten Schmitz)
+ -Fixed issue: Slider left-/right labels not being set correctly (markusfluer)
+ -Fixed issue: Theme Editor Broken after #13357 fix (LouisGac)
+ -Fixed issue: automatic abbreviation in survey overview not working for data security error (markusfluer)
+ -Fixed issue: hyphens in translation string (markusfluer)
+ -Fixed issue: top bar touching survey (markusfluer)
+ -New feature: Added data security policy settings (markusfluer)
+ -New feature: Check for group sort order duplicates in data integrity check (Olle Haerstedt)
+ -New feature: Check question order during integrity check (Olle Haerstedt)
+ -New feature: Data security settings have to be accepted to take a survey (markusfluer)
+ -New feature: added a js based filter on the data security acceptance (markusfluer)
+ #Updated translation: Catalan by qualitatuvic
+ #Updated translation: Dutch (Informal) by Han
+ #Updated translation: Dutch by Han
+ #Updated translation: French (France) by b00z00
+ #Updated translation: German (Informal) by c_schmitz
+ #Updated translation: German by c_schmitz
+ #Updated translation: Hungarian by kkd
+ #Updated translation: Myanmar by AlexEDGE1
+ #Updated translation: Norwegian (Bokmål) by pmonstad
+ #Updated translation: Polish (Informal) by elissa
+ #Updated translation: Polish by elissa
+
+Changes from 3.4.3 (build 180227) to 3.4.4 (build 180305) Mar 5, 2018
+-Fixed issue #13246: Fix plugin in survey responses (Olle Haerstedt)
+-Fixed issue #13310: Cannot delete surveys in Survey list when debug is on (Olle Haerstedt)
+-Fixed issue #13356: Crash at optin and optout (Olle Haerstedt)
+-Fixed issue #13357: "Surveys in this group" is not filtering surveys (LouisGac)
+-Fixed issue #13367: Theme list in theme editor should only list installed themes (LouisGac)
+-Fixed issue #13396: Some files/folders not included in imported survey themes (Olle Haerstedt)
+-Fixed issue #13424: JavaScript is displayed in email notifications (Olle Haerstedt)
+-Fixed issue #13425: Cannot add subquestions and answer options with plus button (Olle Haerstedt)
+-Fixed issue #13426: No message displayed when saving general survey settings (Olle Haerstedt)
+-Fixed issue #13428: Reflected XSS in file uploader (Olle Haerstedt)
+-Fixed issue #13429: Multiple choice with comments not showing all (Olle Haerstedt)
+-Fixed issue #13433: Base string "List meny entries" incorrect (Olle Haerstedt)
+-Fixed issue: Can't delete uploaded theme files (Olle Haerstedt)
+-Fixed issue: Filter assessments (Olle Haerstedt)
+-Fixed issue: Import of predefined label sets was not working (markusfluer)
+-Fixed issue: Survey group filter on survey list (LouisGac)
+-Fixed issue: Twig tags macro and import are now supported (LouisGac)
+-New translation: Myanmar (Burmese) (Carsten Schmitz)
+#Updated translation: Catalan by qualitatuvic
+#Updated translation: French (France) by arnaud21
+#Updated translation: Hungarian by kkd 
+#Updated translation: Italian (Informal) by lfanfoni
+#Updated translation: Italian by lfanfoni
+#Updated translation: Japanese by nomoto
+#Updated translation: Myanmar by AlexEDGE1
+#Updated translation: Norwegian (Bokmål) by pmonsta
+#Updated translation: Polish (Informal) by elissa
+#Updated translation: Polish by elissa
+#Updated translation: Portuguese (Brazil) by femariso, marciojv, mauriciofurtado
+
 Changes from 3.4.2 (build 180223) to 3.4.3 (build 180227) Feb 27, 2018
 -Fixed issue #13338: DejaVu font missing (Olle Haerstedt)
 -Fixed issue #13389: Cannot add JavaScript file to custom admin theme (Olle Haerstedt)

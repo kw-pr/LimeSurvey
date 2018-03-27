@@ -871,6 +871,9 @@ function getSurveyInfo($surveyid, $languagecode = '')
             $thissurvey['name'] = $thissurvey['surveyls_title'];
             $thissurvey['description'] = $thissurvey['surveyls_description'];
             $thissurvey['welcome'] = $thissurvey['surveyls_welcometext'];
+            $thissurvey['datasecurity_notice_label'] = $thissurvey['surveyls_policy_notice_label'];
+            $thissurvey['datasecurity_error'] = $thissurvey['surveyls_policy_error'];
+            $thissurvey['datasecurity_notice'] = $thissurvey['surveyls_policy_notice'];
             $thissurvey['templatedir'] = $thissurvey['template'];
             $thissurvey['adminname'] = $thissurvey['admin'];
             $thissurvey['tablename'] = $oSurvey->responsesTableName;
@@ -909,8 +912,8 @@ function getSurveyInfo($surveyid, $languagecode = '')
 */
 function templateDefaultTexts($sLanguage, $mode = 'html', $sNewlines = 'text')
 {
-
-    $aDefaultTexts = LsDefaultDataSets::getTemplateDefaultTexts($mode);
+    
+    $aDefaultTexts = LsDefaultDataSets::getTemplateDefaultTexts($mode, $sLanguage);
     
     if ($sNewlines == 'html') {
         $aDefaultTexts = array_map('nl2br', $aDefaultTexts);

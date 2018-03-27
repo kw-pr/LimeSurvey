@@ -107,6 +107,7 @@ class themes extends Survey_Common_Action
             $uploadresult = "";
             $success = false;
             $debug = [];
+
             if ($action == 'templateuploadimagefile') {
                 // $iTemplateConfigurationId = Yii::app()->request->getPost('templateconfig');
                 // $oTemplateConfiguration = TemplateConfiguration::getInstanceFromConfigurationId($iTemplateConfigurationId);
@@ -147,6 +148,10 @@ class themes extends Survey_Common_Action
                 }
 
                 $destdir = $oTemplateConfiguration->filesPath;
+                if(Template::isStandardTemplate($oTemplateConfiguration->sTemplateName)){
+                    $destdir = $oTemplateConfiguration->generalFilesPath;
+                }
+                
                 $filename = sanitize_filename($_FILES['file']['name'], false, false, false); // Don't force lowercase or alphanumeric
                 $fullfilepath = $destdir.$filename;
                 $debug[] = $destdir;
@@ -176,27 +181,20 @@ class themes extends Survey_Common_Action
                 // Redirect back at file size error.
                 $this->checkFileSizeError();
 
-                $zip = new PclZip($_FILES['the_file']['tmp_name']);
-
                 $sNewDirectoryName = sanitize_dirname(pathinfo($_FILES['the_file']['name'], PATHINFO_FILENAME));
                 $destdir = Yii::app()->getConfig('userthemerootdir').DIRECTORY_SEPARATOR.$sNewDirectoryName;
 
-                if (!is_writeable(dirname($destdir))) {
-                    Yii::app()->user->setFlash('error', sprintf(gT("Incorrect permissions in your %s folder."), dirname($destdir)));
-                    $this->getController()->redirect(array("admin/themes/sa/upload"));
-                }
+                // Redirect back if $destdir is not writable OR if it already exists.
+                $this->checkDestDir($destdir, $sNewDirectoryName);
 
-                if (!is_dir($destdir)) {
-                    mkdir($destdir);
-                } else {
-                    Yii::app()->user->setFlash('error', sprintf(gT("Template '%s' does already exist."), $sNewDirectoryName));
-                    $this->getController()->redirect(array("admin/themes/sa/upload"));
-                }
+                // All OK if we're here.
+                mkdir($destdir);
 
                 $aImportedFilesInfo = array();
                 $aErrorFilesInfo = array();
 
                 if (is_file($_FILES['the_file']['tmp_name'])) {
+                    $zip = new PclZip($_FILES['the_file']['tmp_name']);
                     $aExtractResult = $zip->extract(PCLZIP_OPT_PATH, $destdir, PCLZIP_CB_PRE_EXTRACT, 'templateExtractFilter');
 
                     if ($aExtractResult === 0) {
@@ -224,6 +222,7 @@ class themes extends Survey_Common_Action
                             rmdirr($destdir);
                             $this->getController()->redirect(array("admin/themes/sa/upload"));
                         }
+                        TemplateManifest::importManifest($sNewDirectoryName, ['extends' => $destdir]);
                     }
 
                     if (count($aImportedFilesInfo) == 0) {
@@ -505,7 +504,7 @@ class themes extends Survey_Common_Action
 
                 if ($mkdirresult == 1) {
                     // We just copy the while directory structure, but only the xml file
-                    $oFileHelper->copyDirectory($copydirname, $newdirname, array('fileTypes' => array('xml', 'png', 'jpg')));
+                    $oFileHelper->copyDirectory($copydirname, $newdirname, array('fileTypes' => array('xml', 'png', 'jpg'), 'newDirMode' => 0755));
                     //TemplateConfiguration::removeAllNodes($newdirname);
                     TemplateManifest::extendsConfig($copydir, $newname);
                     TemplateManifest::importManifest($newname, ['extends' => $copydir]);
@@ -1255,6 +1254,25 @@ class themes extends Survey_Common_Action
                 ),
                 'error'
             );
+            $this->getController()->redirect(array("admin/themes/sa/upload"));
+        }
+    }
+
+    /**
+     * Redirect back if $destdir is not writable or already exists.
+     * @param string $destdir
+     * @param string $sNewDirectoryName
+     * @return void
+     */
+    protected function checkDestDir($destdir, $sNewDirectoryName)
+    {
+        if (!is_writeable(dirname($destdir))) {
+            Yii::app()->user->setFlash('error', sprintf(gT("Incorrect permissions in your %s folder."), dirname($destdir)));
+            $this->getController()->redirect(array("admin/themes/sa/upload"));
+        }
+
+        if (is_dir($destdir)) {
+            Yii::app()->user->setFlash('error', sprintf(gT("Template '%s' does already exist."), $sNewDirectoryName));
             $this->getController()->redirect(array("admin/themes/sa/upload"));
         }
     }
