@@ -1075,28 +1075,10 @@ function do_date($ia)
         $hideCalendar = strpos($dateformatdetails['jsdate'], 'Y') === false
         && strpos($dateformatdetails['jsdate'], 'D') === false
         && strpos($dateformatdetails['jsdate'], 'M') === false;
-
-        // HTML for date question using datepicker
-        $answer = doRender('/survey/questions/answer/date/selector/answer', array(
-            'name'                   => $ia[1],
-            'basename'               => $ia[1],
-            'coreClass'              => $coreClass,
-            'iLength'                => $iLength,
-            'mindate'                => $mindate,
-            'maxdate'                => $maxdate,
-            'dateformatdetails'      => $dateformatdetails['dateformat'],
-            'dateformatdetailsjs'    => $dateformatdetails['jsdate'],
-            'goodchars'              => "", // "return goodchars(event,'".$goodchars."')", //  This won't work with non-latin keyboards
-            'checkconditionFunction' => $checkconditionFunction.'(this.value, this.name, this.type)',
-            'language'               => App()->language,
-            'hidetip'                => trim($aQuestionAttributes['hide_tip']) == 0,
-            'dateoutput'             => $dateoutput,
-            'qid'                    => $ia[0],
-            'hideCalendar'           => $hideCalendar
-            ), true);
-        if (!App()->getClientScript()->isScriptRegistered("setDatePickerGlobalOption")) {
+        /* Global datepicker configuration, muts be done before view (and twig from template can extend it then :) */
+        if (!App()->getClientScript()->isScriptRegistered("setDatePickerGlobalOption", LSYii_ClientScript::POS_POSTSCRIPT)) {
             App()->getClientScript()->registerPackage('bootstrap-datetimepicker');
-            /* Global datepicker configuration */
+            
             $aDefaultDatePicker = array(
                 'locale'=>convertLStoDateTimePickerLocale(App()->language),
                 'tooltips' => array(
@@ -1131,6 +1113,25 @@ function do_date($ia)
             );
             App()->getClientScript()->registerScript("setDatePickerGlobalOption", "$.extend( $.fn.datetimepicker.defaults, ".json_encode($aDefaultDatePicker)." )", LSYii_ClientScript::POS_POSTSCRIPT);
         }
+        // HTML for date question using datepicker
+        $answer = doRender('/survey/questions/answer/date/selector/answer', array(
+            'name'                   => $ia[1],
+            'basename'               => $ia[1],
+            'coreClass'              => $coreClass,
+            'iLength'                => $iLength,
+            'mindate'                => $mindate,
+            'maxdate'                => $maxdate,
+            'dateformatdetails'      => $dateformatdetails['dateformat'],
+            'dateformatdetailsjs'    => $dateformatdetails['jsdate'],
+            'dateformatdetailsphp'    => $dateformatdetails['phpdate'],
+            'goodchars'              => "", // "return goodchars(event,'".$goodchars."')", //  This won't work with non-latin keyboards
+            'checkconditionFunction' => $checkconditionFunction.'(this.value, this.name, this.type)',
+            'language'               => App()->language,
+            'hidetip'                => trim($aQuestionAttributes['hide_tip']) == 0,
+            'dateoutput'             => $dateoutput,
+            'qid'                    => $ia[0],
+            'hideCalendar'           => $hideCalendar
+            ), true);
         App()->getClientScript()->registerScript('doPopupDate'.$ia[0], "doPopupDate({$ia[0]});", LSYii_ClientScript::POS_POSTSCRIPT);
     }
     $inputnames[] = $ia[1];
@@ -3078,8 +3079,8 @@ function do_shortfreetext($ia)
             if (!isset($currentLatLong) || $currentLatLong == false) {
                 $floatLat = 0;
                 $floatLng = 0;
-                $LatLong  = explode(" ", trim($aQuestionAttributes['location_defaultcoordinates']));
-
+                $sDefaultcoordinates=trim(LimeExpressionManager::ProcessString($aQuestionAttributes['location_defaultcoordinates'], $ia[0], array(), 3, 1, false, false, true));/* static var is the last one */
+                $LatLong = explode(" ", $sDefaultcoordinates);
                 if (isset($LatLong[0]) && isset($LatLong[1])) {
                     $floatLat = $LatLong[0];
                     $floatLng = $LatLong[1];
@@ -3124,7 +3125,7 @@ function do_shortfreetext($ia)
             'coreClass'              => $coreClass,
             'freeTextId'             => 'answer'.$ia[1],
             'name'                   => $ia[1],
-            'qid'=>$ia[0],
+            'qid'                    => $ia[0],
             'basename'               => $ia[1],
             'checkconditionFunction' => $checkconditionFunction.'(this.value, this.name, this.type)',
             'value'                  => $_SESSION['survey_'.Yii::app()->getConfig('surveyID')][$ia[1]],
@@ -3144,7 +3145,6 @@ function do_shortfreetext($ia)
         $coreClass       = "ls-answers map-item geoloc-item";
         $currentLocation = $_SESSION['survey_'.Yii::app()->getConfig('surveyID')][$ia[1]];
         $currentCenter   = $currentLatLong = null;
-
         // Get the latitude/longtitude for the point that needs to be displayed by default
         if (strlen($currentLocation) > 2 && strpos($currentLocation, ";")) {
             $currentLatLong = explode(';', $currentLocation);
@@ -3156,7 +3156,8 @@ function do_shortfreetext($ia)
         // If it's not set : set the center to the default position, but don't set the marker
         if (!$currentLatLong) {
             $currentLatLong = array("", "");
-            $currentCenter = explode(" ", trim($aQuestionAttributes['location_defaultcoordinates']));
+            $sDefaultcoordinates=trim(LimeExpressionManager::ProcessString($aQuestionAttributes['location_defaultcoordinates'], $ia[0], array(), 3, 1, false, false, true));/* static var is the last one */
+            $currentCenter = explode(" ", $sDefaultcoordinates);
             if (count($currentCenter) != 2) {
                 $currentCenter = array("", "");
             }

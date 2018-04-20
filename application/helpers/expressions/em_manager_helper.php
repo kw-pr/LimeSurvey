@@ -3904,6 +3904,14 @@
                         $csuffix = $fielddata['aid'];
                         $varName = $fielddata['title'] . '_' . $fielddata['aid'];
                         $question = $fielddata['subquestion'];
+                        // In M and P , we use $question (sub question) for shown. With other : we show to the user 'other_replace_text' if it's set. see #13505
+                        if($other == "Y") {
+                            if (isset($qattr[$questionNum]['other_replace_text']) && trim($qattr[$questionNum]['other_replace_text']) != '') {
+                                $question = trim($qattr[$questionNum]['other_replace_text']);
+                            } else {
+                                $question = $this->gT('Other:');
+                            }
+                        }
                         //                    $question = $fielddata['question'] . ': ' . $fielddata['subquestion'];
                         if ($type == 'P' && preg_match("/comment$/", $sgqa)) {
                             //                            $rowdivid = substr($sgqa,0,-7);
@@ -4235,9 +4243,9 @@
                 //                . ",'qseq':" . $questionSeq
                 .$ansList;
 
-                if ($type == 'M' || $type == 'P')
-                {
-                    $this->varNameAttr[$jsVarName] .= ",'question':'" . htmlspecialchars(preg_replace('/[[:space:]]/',' ',$question),ENT_QUOTES) . "'";
+                if ($type == 'M' || $type == 'P') {
+                    $question = htmlspecialchars(preg_replace('/[[:space:]]/',' ',$question),ENT_QUOTES);
+                    $this->varNameAttr[$jsVarName] .= ",'question':'" . $question . "'";
                 }
                 $this->varNameAttr[$jsVarName] .= "}";
             }
@@ -4493,6 +4501,53 @@
             return $result;
         }
 
+        /**
+        * Translate all Expressions, Macros, registered variables, etc. in $string for current step
+        * @param string $string - the string to be replaced
+        * @param array $replacementFields - optional replacement values
+        * @param integer $numRecursionLevels - the number of times to recursively subtitute values in this string
+        * @param boolean $static - return static string (without any javascript)
+        * @return string - the original $string with all replacements done.
+        */
+        public static function ProcessStepString($string, $replacementFields=array(), $numRecursionLevels=3, $static=false)
+        {
+            if((strpos($string, "{") === false)){
+                return $string;
+            }
+            $LEM =& LimeExpressionManager::singleton();
+
+            // Fill tempVars if needed
+            if (isset($replacementFields) && is_array($replacementFields) && count($replacementFields) > 0) {
+                $replaceArray = array();
+                foreach ($replacementFields as $key => $value) {
+                    $replaceArray[$key] = array(
+                    'code'=>$value,
+                    'jsName_on'=>'',
+                    'jsName'=>'',
+                    'readWrite'=>'N',
+                    );
+                }
+                $LEM->tempVars = $replaceArray;
+            }
+            // Get current seq for question and group*/
+            $questionSeq = $LEM->currentQuestionSeq;
+            $groupSeq = $LEM->currentGroupSeq;
+            // Group by group : need find questionSeq  */
+            if($groupSeq > -1 && $questionSeq == -1 && isset($LEM->groupSeqInfo[$groupSeq]['qend'])) {
+                $questionSeq = $LEM->groupSeqInfo[$groupSeq]['qend'];
+            }
+            // EM core need questionSeq + question id … */
+            $qid = 0;
+            if($questionSeq > -1 && !is_null($questionSeq)) {
+                $aQid=array_keys($LEM->questionId2questionSeq,$questionSeq);
+                if(isset($aQid[0])) {
+                    $qid = $aQid[0];
+                }
+            }
+            // Replace in string
+            $string = $LEM->em->sProcessStringContainingExpressions($string,$qid, $numRecursionLevels, 1, $groupSeq, $questionSeq,$static);
+            return $string;
+        }
 
         /**
         * Compute Relevance, processing $eqn to get a boolean value.  If there are syntax errors, return false.
@@ -6519,7 +6574,7 @@
                         {
                             $qmandViolation = true; // TODO - what about 'other'?
                         }
-                        $sMandatoryText = $LEM->gT('Please complete all parts').'.';
+                        $sMandatoryText = $LEM->gT('Please complete all parts.');
                         $mandatoryTip .= Yii::app()->getController()->renderPartial('//survey/questions/question_help/mandatory_tip', array(
                                 'sMandatoryText'=>$sMandatoryText,
                         ), true);
@@ -6551,7 +6606,7 @@
                                     }
                                 }
                             }
-                            $sMandatoryText = $LEM->gT('Please check at least one box per row').'.';
+                            $sMandatoryText = $LEM->gT('Please check at least one box per row.');
                             $mandatoryTip .= Yii::app()->getController()->renderPartial('//survey/questions/question_help/mandatory_tip', array(
                                     'sMandatoryText'=>$sMandatoryText,
                             ), true);
@@ -6563,7 +6618,7 @@
                             {
                                 $qmandViolation = true; // TODO - what about 'other'?
                             }
-                            $sMandatoryText = $LEM->gT('Please complete all parts').'.';
+                            $sMandatoryText = $LEM->gT('Please complete all parts.');
                             $mandatoryTip .= Yii::app()->getController()->renderPartial('//survey/questions/question_help/mandatory_tip', array(
                                     'sMandatoryText'=>$sMandatoryText,
                             ), true);
@@ -6574,7 +6629,7 @@
                         {
                             $qmandViolation = true; // TODO - what about 'other'?
                         }
-                        $sMandatoryText = $LEM->gT('Please rank all items').'.';
+                        $sMandatoryText = $LEM->gT('Please rank all items.');
                         $mandatoryTip .= Yii::app()->getController()->renderPartial('//survey/questions/question_help/mandatory_tip', array(
                                 'sMandatoryText'=>$sMandatoryText,
                         ), true);
@@ -7131,6 +7186,15 @@
         }
 
         /**
+         * Did LEM is currently initialized
+         * @return boolean
+         */
+        public static function isInitialized ()
+        {
+            $LEM =& LimeExpressionManager::singleton();
+            return $LEM->initialized;
+        }
+        /**
         * Should be called at end of each page
         * @return void
         */
@@ -7159,6 +7223,28 @@
             $_SESSION['LEMsingleton']=serialize($LEM);
         }
 
+        /**
+         * End public HTML
+         * @return string|null : hidden inputs needed for relevance
+         * @todo : add directly hidden input in page without return it.
+         */
+        public static function FinishProcessPublicPage()
+        {
+            if(self::isInitialized()) {
+                $LEM =& LimeExpressionManager::singleton();
+                /* Replace FinishProcessingGroup directly : always needed (in all in one too, and needed at end only (after all html are processed for Expression)) */
+                $LEM->pageTailorInfo[] = $LEM->em->GetCurrentSubstitutionInfo();
+                $LEM->pageRelevanceInfo[] = $LEM->groupRelevanceInfo;
+                $aScriptsAndHiddenInputs = self::GetRelevanceAndTailoringJavaScript(true);
+                $sScripts = implode('', $aScriptsAndHiddenInputs['scripts']);
+                Yii::app()->clientScript->registerScript('lemscripts', $sScripts, CClientScript::POS_BEGIN);
+                $sHiddenInputs = implode('', $aScriptsAndHiddenInputs['inputs']);
+                Yii::app()->clientScript->registerScript('triggerEmRelevance', "triggerEmRelevance();", CClientScript::POS_END);
+                Yii::app()->clientScript->registerScript('updateMandatoryErrorClass', "updateMandatoryErrorClass();", CClientScript::POS_END); /* Maybe only if we have mandatory error ?*/
+                $LEM->FinishProcessingPage();
+                return $sHiddenInputs;
+            }
+        }
         /*
         * Generate JavaScript needed to do dynamic relevance and tailoring
         * Also create list of variables that need to be declared
@@ -7832,7 +7918,6 @@
             $jsParts[] = implode("\n",$valEqns);
 
             $allJsVarsUsed = array_unique($allJsVarsUsed);
-
             // Add JavaScript Mapping Arrays
             if (isset($LEM->alias2varName) && count($LEM->alias2varName) > 0)
             {
@@ -8925,12 +9010,9 @@ report~numKids > 0~message~{name}, you said you are {age} and that you have {num
                                 case 'O': //LIST WITH COMMENT drop-down/radio-button list + textarea
                                 case 'M': //Multiple choice checkbox
                                 case 'P': //Multiple choice with comments checkbox + text
-                                    if (preg_match('/comment$/',$sgqa) || preg_match('/other$/',$sgqa) || preg_match('/_other$/',$name))
-                                    {
+                                    if (preg_match('/comment$/',$sgqa) || preg_match('/other$/',$sgqa) || preg_match('/_other$/',$name)) {
                                         return htmlspecialchars($_SESSION[$this->sessid][$sgqa],ENT_NOQUOTES);// Minimum sanitizing the string entered by user
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         return $_SESSION[$this->sessid][$sgqa];
                                     }
                                 default:
@@ -9020,12 +9102,9 @@ report~numKids > 0~message~{name}, you said you are {age} and that you have {num
                 case 'scale_id':
                     return (isset($var[$attr])) ? $var[$attr] : $default;
                 case 'shown':
-                    if (isset($var['shown']))
-                    {
+                    if (isset($var['shown'])) {
                         return $var['shown'];    // for static values like TOKEN
-                    }
-                    else
-                    {
+                    } else {
                         $type = $var['type'];
                         $code = $this->_GetVarAttribute($name,'code',$default,$gseq,$qseq);
                         $shown = $default;  // Default value to satisfy Scrutinizer
@@ -9100,16 +9179,11 @@ report~numKids > 0~message~{name}, you said you are {age} and that you have {num
                                 break;
                             case 'M': //Multiple choice checkbox
                             case 'P': //Multiple choice with comments checkbox + text
-                                if ($code == 'Y' && isset($var['question']) && !preg_match('/comment$/',$sgqa))
-                                {
+                                // We need question too for other !empty test Y or anything for other. see #13505
+                                if (!empty($code) && isset($var['question']) && !preg_match('/comment$/',$sgqa)) {
                                     $shown = $var['question'];
-                                }
-                                elseif (preg_match('/comment$/',$sgqa)) {
+                                } elseif (preg_match('/comment$/',$sgqa)) {
                                     $shown=$code; // This one return sgqa.code
-                                }
-                                else
-                                {
-                                    $shown = $default;
                                 }
                                 break;
                             case 'G': //GENDER drop-down list
@@ -9389,7 +9463,6 @@ report~numKids > 0~message~{name}, you said you are {age} and that you have {num
                 $gid = $q['info']['gid'];
                 $qid = $q['info']['qid'];
                 $qseq = $q['info']['qseq'];
-
                 $errorCount=0;
 
                 //////
@@ -9613,7 +9686,7 @@ report~numKids > 0~message~{name}, you said you are {age} and that you have {num
                 //////
                 // Must parse Validation this way so that regex (preg) works
                 $prettyValidEqn = '';
-                if ($q['prettyValidEqn'] != '') {
+                if ($q['validEqn'] != '') {
                     $validationEqn = $q['validEqn'];
                     if (!isset($LEM->ParseResultCache[$validationEqn]))
                     {
@@ -9871,8 +9944,9 @@ report~numKids > 0~message~{name}, you said you are {age} and that you have {num
                         $message = '';
                         break;
                 }
-                $out = "<p class='LEMheading'>$message</p>\n" . $out."</div>";
+                $out = "<p class='LEMheading'>$message</p>\n" . $out;
             }
+            $out .="</div>";
             return array(
                 'errors'=>$allErrors,
                 'html'=>$out
