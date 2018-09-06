@@ -137,7 +137,7 @@ class AdminTheme extends CFormModel
         // and move the rest to the bootstrap package.
         // NB: registerAllScripts could be replaced by js definition in package. If needed: not a problem to do it
 
-        if (!Yii::app()->request->getQuery('isAjax', false)) {
+        if (!Yii::app()->request->getIsAjaxRequest()) {
             Yii::app()->getClientScript()->registerMetaTag('width=device-width, initial-scale=1.0', 'viewport'); // See: https://github.com/LimeSurvey/LimeSurvey/blob/master/application/extensions/bootstrap/components/TbApi.php#l108-l115
             App()->bootstrap->registerTooltipAndPopover(); // See : https://github.com/LimeSurvey/LimeSurvey/blob/master/application/extensions/bootstrap/components/TbApi.php#l153-l160
             App()->getClientScript()->registerScript('coreuser', '
