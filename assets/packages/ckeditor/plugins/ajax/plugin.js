@@ -74,6 +74,7 @@
 				return null;
 
 			xhr.open( 'GET', url, async );
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
 			if ( async ) {
 				// TODO: perform leak checks on this closure.
@@ -97,6 +98,7 @@
 				return null;
 
 			xhr.open( 'POST', url, true );
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
 			xhr.onreadystatechange = function() {
 				if ( xhr.readyState == 4 ) {
