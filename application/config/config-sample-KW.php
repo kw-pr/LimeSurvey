@@ -24,7 +24,7 @@
 return array(
 	'components' => array(
 		'db' => array(
-			'connectionString' => 'mysql:host=localhost;port=3306;dbname=SCHOTTpolls_180124;',
+			'connectionString' => 'mysql:host=localhost;port=3306;dbname=SCHOTTpolls;',
 			'emulatePrepare' => true,
 			'username' => 'polls',
 			'password' => '******',
