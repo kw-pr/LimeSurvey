@@ -1,5 +1,5 @@
 <div class='side-body <?php echo getSideBodyClass(true); ?>'>
-    <div class="pagetitle h3"><?php eT('Question summary'); ?>  <small><em><?php echo  $qrrow['title'];?></em> (ID: <?php echo  $qid;?>)</small></div>
+    <div class="pagetitle h3"><?php eT('Question summary'); ?>  <small><em><?php echo  $qrrow['title'];?></em> (ID: <?php echo (int) $qid;?>)</small></div>
     <div class="row">
         <div class="col-lg-12 content-right">
 
@@ -41,7 +41,7 @@
                     </td>
                     <td>
                         <?php
-                            templatereplace($qrrow['question'],array(),$aReplacementData,'Unspecified', false ,$qid);
+                            templatereplace($qrrow['question'],array('QID'=>$qrrow['qid']),$aReplacementData,'Unspecified', false ,$qid);
                             echo viewHelper::stripTagsEM(LimeExpressionManager::GetLastPrettyPrintExpression());
                         ?>
                     </td>
@@ -59,7 +59,7 @@
                         <?php
                             if (trim($qrrow['help'])!='')
                             {
-                                templatereplace($qrrow['help'],array(),$aReplacementData,'Unspecified', false ,$qid);
+                                templatereplace($qrrow['help'],array('QID'=>$qrrow['qid']),$aReplacementData,'Unspecified', false ,$qid);
                                 echo viewHelper::stripTagsEM(LimeExpressionManager::GetLastPrettyPrintExpression());
                             }
                         ?>
@@ -226,3 +226,12 @@
         </div>
     </div>
 </div>
+
+<?php
+App()->getClientScript()->registerScript(
+    'activatePanelClickable', 
+    'LS.pageLoadActions.panelClickable()', 
+    LSYii_ClientScript::POS_POSTSCRIPT 
+)
+?>
+

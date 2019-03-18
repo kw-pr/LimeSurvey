@@ -8,7 +8,7 @@
     <div class='row container-fluid'>
 
         <!-- left buttons -->
-        <div class="col-md-10">
+        <div class="col-md-9">
 
             <!-- Token view buttons -->
             <?php if( isset($token_bar['buttons']['view']) ): ?>
@@ -21,58 +21,62 @@
                     </a>
                 <?php endif; ?>
 
-                <!-- Create tokens -->
-                <div class="btn-group">
-                <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <span class="icon-add text-success"></span>
-                    <?php eT("Create...");?> <span class="caret"></span>
-                </button>
+                <!-- Create and Import tokens -->
+                <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'create') || Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'import')): ?>
+                    <!-- Create tokens -->
+                    <div class="btn-group">
+                    <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <span class="icon-add text-success"></span>
+                        <?php eT("Create...");?> <span class="caret"></span>
+                    </button>
 
-                <!-- Add new token entry -->
-                <ul class="dropdown-menu">
-                <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'create')): ?>
-                <li>
-                    <a class="pjax" href="<?php echo $this->createUrl("admin/tokens/sa/addnew/surveyid/$oSurvey->sid"); ?>" >
-                        <span class="icon-add"></span>
-                        <?php eT("Add participant"); ?>
-                    </a>
-                </li>
-
-                <!-- Create dummy tokens -->
-                <li>
-                    <a class="pjax"  href="<?php echo $this->createUrl("admin/tokens/sa/adddummies/surveyid/$oSurvey->sid"); ?>" >
-                       <span class="fa fa-plus-square"></span>
-                       <?php eT("Create dummy participants"); ?>
-                    </a>
-                </li>
-                <?php endif; ?>
-
-                <!-- Import tokens -->
-                <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'import')): ?>
-                    <li role="separator" class="divider"></li>
+                    <!-- Add new token entry -->
+                    <ul class="dropdown-menu">
+                    <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'create')): ?>
                     <li>
-                        <small><?php eT("Import participants from:"); ?></small>
-                    </li>
-
-                    <!-- from CSV file -->
-                    <li>
-                       <a class="pjax"  href="<?php echo $this->createUrl("admin/tokens/sa/import/surveyid/$oSurvey->sid") ?>" >
-                           <span class="icon-importcsv"></span>
-                           <?php eT("CSV file"); ?>
-                       </a>
-                    </li>
-
-                    <!-- from LDAP query -->
-                    <li>
-                        <a class="pjax"  href="<?php echo $this->createUrl("admin/tokens/sa/importldap/surveyid/$oSurvey->sid") ?>" >
-                            <span class="icon-importldap"></span>
-                            <?php eT("LDAP query"); ?>
+                        <a class="pjax" href="<?php echo $this->createUrl("admin/tokens/sa/addnew/surveyid/$oSurvey->sid"); ?>" >
+                            <span class="icon-add"></span>
+                            <?php eT("Add participant"); ?>
                         </a>
                     </li>
-                <?php endif; ?>
-                </ul>
-                </div>
 
+                    <!-- Create dummy tokens -->
+                    <li>
+                        <a class="pjax"  href="<?php echo $this->createUrl("admin/tokens/sa/adddummies/surveyid/$oSurvey->sid"); ?>" >
+                           <span class="fa fa-plus-square"></span>
+                           <?php eT("Create dummy participants"); ?>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                    <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'create') && Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'import')): ?>
+                        <li role="separator" class="divider"></li>
+                    <?php endif; ?>
+                    <!-- Import tokens -->
+                    <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'import')): ?>
+                        
+                        <li>
+                            <small><?php eT("Import participants from:"); ?></small>
+                        </li>
+
+                        <!-- from CSV file -->
+                        <li>
+                           <a class="pjax"  href="<?php echo $this->createUrl("admin/tokens/sa/import/surveyid/$oSurvey->sid") ?>" >
+                               <span class="icon-importcsv"></span>
+                               <?php eT("CSV file"); ?>
+                           </a>
+                        </li>
+
+                        <!-- from LDAP query -->
+                        <li>
+                            <a class="pjax"  href="<?php echo $this->createUrl("admin/tokens/sa/importldap/surveyid/$oSurvey->sid") ?>" >
+                                <span class="icon-importldap"></span>
+                                <?php eT("LDAP query"); ?>
+                            </a>
+                        </li>
+                    <?php endif; ?>
+                    </ul>
+                    </div>
+                <?php endif; ?>
                 <!-- Manage additional attribute fields -->
                 <?php if (Permission::model()->hasSurveyPermission($oSurvey->sid, 'tokens', 'update') || Permission::model()->hasSurveyPermission($oSurvey->sid, 'surveysettings', 'update')): ?>
                     <a class="btn btn-default pjax" href='<?php echo $this->createUrl("admin/tokens/sa/managetokenattributes/surveyid/$oSurvey->sid"); ?>' role="button">
@@ -174,7 +178,7 @@
                 </a>
 
                 <!-- View participants of this survey in CPDB -->
-                <a class="btn btn-default" href="#" role="button" onclick="sendPost('<?php echo $this->createUrl("/admin/participants/sa/displayParticipants"); ?>','',['searchcondition'],['surveyid||equal|| <?php echo $oSurvey->sid ?>']);">
+                <a class="btn btn-default" href="#" role="button" onclick="window.LS.sendPost('<?php echo $this->createUrl("/admin/participants/sa/displayParticipants"); ?>',false,{'searchcondition': 'surveyid||equal|| <?php echo $oSurvey->sid ?>'});">
                     <span class="ui-icon ui-participant-link"></span>
                     <?php eT("View in CPDB"); ?>
                 </a>
@@ -183,7 +187,7 @@
         </div>
 
         <!-- Right buttons -->
-        <div class="col-md-2 text-right">
+        <div class="col-md-3 text-right">
 
             <!-- View token buttons -->
             <?php if( isset($token_bar['buttons']['view'] )): ?>

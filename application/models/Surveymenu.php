@@ -41,7 +41,8 @@ class Surveymenu extends LSActiveRecord
         return array(
             array('changed_at, name', 'required'),
             array('name', 'unique'),
-            array('parent_id, survey_id, user_id, ordering, level, changed_by, created_by', 'numerical', 'integerOnly'=>true),
+            array('ordering, level, changed_by, created_by', 'numerical', 'integerOnly'=>true),
+            array('parent_id, survey_id, user_id', 'default', 'value' => null),
             array('title, position', 'length', 'max'=>255),
             array('name', 'length', 'max'=>128),
             array('description, created_at', 'safe'),
@@ -60,13 +61,13 @@ class Surveymenu extends LSActiveRecord
         // class name for the relations automatically generated below.
         return array(
             'surveymenuEntries' => array(self::HAS_MANY, 'SurveymenuEntries', 'menu_id'),
-            'survey' => array(self::BELONGS_TO, 'Survey', 'sid'),
+            'survey' => array(self::BELONGS_TO, 'Survey', ['survey_id' => 'sid']),
             'user' => array(self::BELONGS_TO, 'User', 'user_id'),
             'parent' => array(self::BELONGS_TO, 'Surveymenu', 'parent_id'),
         );
     }
 
-    
+
     public static function staticAddMenu($menuArray)
     {
         $oSurveymenu = new Surveymenu();
@@ -87,11 +88,10 @@ class Surveymenu extends LSActiveRecord
 
     public static function staticRemoveMenu($menuName, $recursive = false)
     {
-        
         $oSurveymenu = Surveymenu::model()->find('name=:name', [':name'=>$menuName]);
-        
+
         if ($recursive !== true && count($oSurveymenu->surveymenuEntries) > 0) {
-                return false;
+            return false;
         }
 
         foreach ($oSurveymenu->surveymenuEntries as $oSurveymenuEntry) {
@@ -195,7 +195,7 @@ class Surveymenu extends LSActiveRecord
             'created_by'	=> gT('Created by'),
         );
     }
-    
+
     public function getButtons()
     {
         $buttons = "<div style='white-space: nowrap'>";
@@ -203,10 +203,8 @@ class Surveymenu extends LSActiveRecord
             . "<button class='btn btn-default btn-xs %s %s' role='button' data-toggle='tooltip' title='%s' onclick='return false;'>" //extra class //title
             . "<i class='fa fa-%s' ></i>" //icon class
             . "</button>";
-		
-        if (Permission::model()->hasGlobalPermission('settings', 'update')) {
 
-            
+        if (Permission::model()->hasGlobalPermission('settings', 'update')) {
             $editData = array(
                 'action_surveymenu_editModal',
                 'text-danger',
@@ -226,7 +224,7 @@ class Surveymenu extends LSActiveRecord
         }
 
         $buttons .= '</div>';
-		
+
         return $buttons;
     }
     /**
@@ -266,7 +264,7 @@ class Surveymenu extends LSActiveRecord
             ),
             array(
                 'name' => 'parent_id',
-                'value' => '$data->parent_id ? $data->parent->title." (".$data->parent_id.")" : "<i class=\'fa fa-minus\'></i>"',
+                'value' => '$data->parent_id ? $data->parent[\'title\']." (".$data->parent_id.")" : "<i class=\'fa fa-minus\'></i>"',
                 'type' => 'raw'
             ),
             array(
@@ -308,13 +306,13 @@ class Surveymenu extends LSActiveRecord
     public function onAfterSave($event)
     {
         $criteria = new CDbCriteria();
-		
+
         $criteria->addCondition(['position=:position']);
         $criteria->addCondition(['ordering=:ordering']);
         $criteria->addCondition(['id!=:id']);
         $criteria->params = ['position' => $this->position, 'ordering' => (int) $this->ordering, 'id'=> (int) $this->id];
         $criteria->limit = 1;
-		
+
         $collidingMenu = Surveymenu::model()->find($criteria);
 
         if ($collidingMenu != null) {
@@ -322,19 +320,18 @@ class Surveymenu extends LSActiveRecord
             $collidingMenu->save();
         }
         return parent::onAfterSave($event);
-
     }
 
-        /**
-         * Method to restore the default surveymenu entries
-         * This method will fail if the surveymenus have been tempered, or wrongly set
-         *
-         * @return boolean
-         */
+    /**
+     * Method to restore the default surveymenu entries
+     * This method will fail if the surveymenus have been tempered, or wrongly set
+     *
+     * @return boolean
+     */
     public function restoreDefaults()
     {
-       
         $oDB = Yii::app()->db;
+        switchMSSQLIdentityInsert('surveymenu', true);
         $oTransaction = $oDB->beginTransaction();
         try {
             $oDB->createCommand()->truncateTable('{{surveymenu}}');
@@ -348,6 +345,7 @@ class Surveymenu extends LSActiveRecord
             App()->setLanguage($sOldLanguage);
             return false;
         }
+        switchMSSQLIdentityInsert('surveymenu', false);
         return true;
     }
 
@@ -425,8 +423,13 @@ class Surveymenu extends LSActiveRecord
         $criteria->compare('created_at', $this->created_at, true);
         $criteria->compare('created_by', $this->created_by);
 
+        $pageSize = Yii::app()->user->getState('pageSize', Yii::app()->params['defaultPageSize']);
+
         return new CActiveDataProvider($this, array(
             'criteria'=>$criteria,
+            'pagination' => array(
+                'pageSize' => $pageSize
+            )
         ));
     }
 
@@ -442,7 +445,7 @@ class Surveymenu extends LSActiveRecord
         $model = parent::model($className);
         return $model;
     }
-    
+
 
     public function delete()
     {

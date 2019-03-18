@@ -42,6 +42,10 @@
                 $surveyid = $contextarray[2];
 
                 if (Permission::model()->hasSurveyPermission($surveyid, 'surveycontent', 'update')) {
+                    if (Yii::app()->getConfig('uniq_upload_dir')){
+                        $surveyid = 'uniq';
+                    }
+
                     $_SESSION['KCFINDER']['disabled'] = false;
                     if (preg_match('/^edit:emailsettings/', $_SESSION['FileManagerContext']) != 0) {
                         // Uploadurl use public url or getBaseUrl(true);
@@ -61,7 +65,9 @@
                     } else {
                         $_SESSION['KCFINDER']['uploadURL'] = Yii::app()->getConfig('uploadurl')."/surveys/{$surveyid}/";
                     }
+
                     $_SESSION['KCFINDER']['uploadDir'] = realpath(Yii::app()->getConfig('uploaddir')).DIRECTORY_SEPARATOR.'surveys'.DIRECTORY_SEPARATOR.$surveyid.DIRECTORY_SEPARATOR;
+
                 }
             } elseif (preg_match('/^edit:label/', Yii::app()->session['FileManagerContext']) != 0) {
                 $contextarray = explode(':', Yii::app()->session['FileManagerContext'], 3);
@@ -119,6 +125,12 @@
 
     function getEditor($fieldtype, $fieldname, $fieldtext, $surveyID = null, $gID = null, $qID = null, $action = null)
     {
+
+
+        if (Yii::app()->getConfig('uniq_upload_dir') && !empty($surveyID)){
+            $surveyID = 'uniq';
+        }
+
         initKcfinder();
         //error_log("TIBO fieldtype=$fieldtype,fieldname=$fieldname,fieldtext=$fieldtext,surveyID=$surveyID,gID=$gID,qID=$qID,action=$action");
         $session = &Yii::app()->session;
@@ -129,12 +141,12 @@
 
 
         if (!$session['htmleditormode'] || ($session['htmleditormode'] != 'inline' && $session['htmleditormode'] != 'popup')) {
-                $htmleditormode = Yii::app()->getConfig('defaulthtmleditormode');
+            $htmleditormode = Yii::app()->getConfig('defaulthtmleditormode');
         } else {
             $htmleditormode = $session['htmleditormode'];
         }
-        if ($surveyID && getEmailFormat($surveyID) != 'html' && substr($fieldtype, 0, 6) === "email-") {
-// email but survey as text email
+        if ($surveyID && getEmailFormat($surveyID) != 'html' && substr($fieldtype, 0, 6) === "email_") {
+            // email but survey as text email
             return '';
         }
 
@@ -149,6 +161,12 @@
 
     function getPopupEditor($fieldtype, $fieldname, $fieldtext, $surveyID = null, $gID = null, $qID = null, $action = null)
     {
+
+        if (Yii::app()->getConfig('uniq_upload_dir') && !empty($surveyID)){
+            $surveyID = 'uniq';
+        }
+
+
         $htmlcode = '';
 
         if ($fieldtype == 'editanswer' ||
@@ -170,6 +188,9 @@
 
     function getInlineEditor($fieldtype, $fieldname, $fieldtext, $surveyID = null, $gID = null, $qID = null, $action = null)
     {
+        if (Yii::app()->getConfig('uniq_upload_dir') && !empty($surveyID)){
+            $surveyID = 'uniq';
+        }
 
         $htmlcode = '';
         $toolbaroption = "";
@@ -192,15 +213,11 @@
             }
         }
 
-        if ($fieldtype == 'email-invitation' ||
-        $fieldtype == 'email-registration' ||
-        $fieldtype == 'email-confirmation' ||
-        $fieldtype == 'email-admin_notification' ||
-        $fieldtype == 'email-admin_detailed_notification' ||
-        $fieldtype == 'email-reminder') {
+        /* fieldtype have language at end , set fullpage for email HTML edit */
+        if (substr($fieldtype, 0, 6) === 'email_') {
             $htmlformatoption = ",fullPage:true\n";
+            //~ $htmlformatoption = ",allowedContent:true\n"; // seems uneeded 
         }
-
         if ($surveyID == '') {
             $sFakeBrowserURL = Yii::app()->getController()->createUrl('admin/survey/sa/fakebrowser');
             $sFileBrowserAvailable = ",filebrowserBrowseUrl:'{$sFakeBrowserURL}'
@@ -212,32 +229,29 @@
         }
 
         $scriptCode = ""
-        . "$(document).on('ready pjax:scriptcomplete', 
-            function(){ 
-                if($('#".$fieldname."').length >0){
-                    var $oCKeditorVarName = CKEDITOR.instances['$fieldname'];
-                    if ($oCKeditorVarName) { 
-                            CKEDITOR.remove($oCKeditorVarName);
-                        $oCKeditorVarName = null;
-                    }
-
-                    $oCKeditorVarName = CKEDITOR.replace('$fieldname', {
-                    LimeReplacementFieldsType : \"".$fieldtype."\"
-                    ,LimeReplacementFieldsSID : \"".$surveyID."\"
-                    ,LimeReplacementFieldsGID : \"".$gID."\"
-                    ,LimeReplacementFieldsQID : \"".$qID."\"
-                    ,LimeReplacementFieldsAction : \"".$action."\"
-                    ,LimeReplacementFieldsPath : \"".Yii::app()->getController()->createUrl("admin/limereplacementfields/sa/index/")."\"
-                    ,language:'".sTranslateLangCode2CK(Yii::app()->session['adminlang'])."'"
-                    . $sFileBrowserAvailable
-                    . $htmlformatoption
-                    . $toolbaroption
-                    ."});
-
-                    \$('#$fieldname').parents('ul:eq(0)').addClass('editor-parent');
+        . "
+            if($('#".$fieldname."').length >0){
+                var $oCKeditorVarName = CKEDITOR.instances['$fieldname'];
+                if ($oCKeditorVarName) {
+                        CKEDITOR.remove($oCKeditorVarName);
+                    $oCKeditorVarName = null;
                 }
-        });";
 
-        Yii::app()->getClientScript()->registerScript('ckEditorScriptsInline-'.$fieldname, $scriptCode, LSYii_ClientScript::POS_END);
+                $oCKeditorVarName = CKEDITOR.replace('$fieldname', {
+                LimeReplacementFieldsType : \"".$fieldtype."\"
+                ,LimeReplacementFieldsSID : \"".$surveyID."\"
+                ,LimeReplacementFieldsGID : \"".$gID."\"
+                ,LimeReplacementFieldsQID : \"".$qID."\"
+                ,LimeReplacementFieldsAction : \"".$action."\"
+                ,LimeReplacementFieldsPath : \"".Yii::app()->getController()->createUrl("admin/limereplacementfields/sa/index/")."\"
+                ,language:'".sTranslateLangCode2CK(Yii::app()->session['adminlang'])."'"
+                . $sFileBrowserAvailable
+                . $htmlformatoption
+                . $toolbaroption
+                ."});
+
+                \$('#$fieldname').parents('ul:eq(0)').addClass('editor-parent');
+            }";
+
+        Yii::app()->getClientScript()->registerScript('ckEditorScriptsInline-'.$fieldname, $scriptCode, LSYii_ClientScript::POS_POSTSCRIPT);
     }
-

@@ -195,7 +195,7 @@ $surveyid = $oSurvey->sid;
                     <li class="list-group-item">
                         <div class="ls-flex-row col-12">
                             <div class="col-4">
-                                <?php eT("Data security notice error:");?>
+                                <?php eT("Survey data policy notice error:");?>
                             </div>
                             <div class="col-8">
                                 <?php
@@ -210,11 +210,11 @@ $surveyid = $oSurvey->sid;
                             </div>
                         </div>
                     </li>
-                    <!-- Data security notice label -->
+                    <!-- Survey data policy notice label -->
                     <li class="list-group-item">
                         <div class="ls-flex-row col-12">
                             <div class="col-4">
-                                <?php eT("Data security notice label:");?>
+                                <?php eT("Survey data policy notice label:");?>
                             </div>
                             <div class="col-8">
                                 <?php
@@ -244,10 +244,20 @@ $surveyid = $oSurvey->sid;
                 <li class="list-group-item">
                     <div class="ls-flex-row col-12">
                         <div class="col-4">
-                            <?php eT("Administrator:");?>
+                            <?php eT("Owner:");?>
                         </div>
                         <div class="col-8">
                                 <?php echo flattenText("{$oSurvey->owner->full_name} ({$oSurvey->owner->email})");?>
+                        </div>
+                    </div>
+                </li>
+                <li class="list-group-item">
+                    <div class="ls-flex-row col-12">
+                        <div class="col-4">
+                            <?php eT("Administrator:");?>
+                        </div>
+                        <div class="col-8">
+                                <?php echo CHtml::encode("{$oSurvey->admin} ({$oSurvey->adminemail})");?>
                         </div>
                     </div>
                 </li>

@@ -207,7 +207,7 @@ class PluginManager extends \CApplicationComponent
                         // Directory name Example most contain file ExamplePlugin.php.
                         $pluginName = $fileInfo->getFilename();
                         $file = Yii::getPathOfAlias($pluginDir.".$pluginName.{$pluginName}").".php";
-                        if (file_exists($file)) {
+                        if (file_exists($file) && $this->_checkWhitelist($pluginName)) {
                             $result[$pluginName] = $this->getPluginInfo($pluginName, $pluginDir);
                         }
                     }
@@ -276,7 +276,7 @@ class PluginManager extends \CApplicationComponent
         // If the id is not set we search for the plugin.
         if (!isset($id)) {
             foreach ($this->plugins as $plugin) {
-                if (get_class($plugin) == $pluginName) {
+                if (!is_null($plugin) && get_class($plugin) == $pluginName) {
                     return $plugin;
                 }
             }
@@ -408,6 +408,18 @@ class PluginManager extends \CApplicationComponent
         $this->plugins = array();
         $this->subscriptions = array();
         $this->loadPlugins();
+    }
+
+
+    private function _checkWhitelist($pluginName){
+        if(App()->getConfig('usePluginWhitelist')) {
+
+            $whiteList = App()->getConfig('pluginWhitelist');
+            $coreList = App()->getConfig('pluginCoreList');
+            $allowedPlugins =  array_merge($coreList, $whiteList);
+            return array_search($pluginName, $allowedPlugins) !== false;
+        }
+        return true;
     }
 
 }

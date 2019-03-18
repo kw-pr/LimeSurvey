@@ -33,7 +33,7 @@ class RSyntaxWriter extends Writer
             $this->handle = fopen($this->filename, 'w');
         }
 
-        $this->out('data <- read.csv("survey_'.$survey->id.'_R_data_file.csv", quote = "\'\"", na.strings=c("", "\"\""), stringsAsFactors=FALSE, fileEncoding="UTF-8")');
+        $this->out('data <- read.csv("survey_'.$survey->id.'_R_data_file.csv", quote = "\'\"", na.strings=c("", "\"\""), stringsAsFactors=FALSE, fileEncoding="UTF-8-BOM")');
         $this->out("");
         $this->out("");
 
@@ -147,7 +147,7 @@ class RSyntaxWriter extends Writer
                 $str .= '),labels=c(';
 
                 foreach ($answers as $answer) {
-                    $str .= '"'.addslashes($answer['value']).'", ';
+                    $str .= '"'.addslashes(!empty($answer['value'])?$answer['value']:$answer['code']).'", ';
                 }
 
                 $str = mb_substr($str, 0, -2);

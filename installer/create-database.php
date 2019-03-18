@@ -445,7 +445,8 @@ function createDatabase($oDB){
             'title' => "string(168)  NOT NULL DEFAULT ''",
             'position' => "string(192)  NOT NULL DEFAULT 'side'",
             'description' => "text ",
-            'active' => "boolean NOT NULL DEFAULT '0'",
+            'showincollapse' => 'integer DEFAULT 0',
+            'active' => "integer NOT NULL DEFAULT '0'",
             'changed_at' => "datetime",
             'changed_by' => "integer NOT NULL DEFAULT '0'",
             'created_at' => "datetime",
@@ -456,10 +457,13 @@ function createDatabase($oDB){
         $oDB->createCommand()->createIndex('{{idx2_surveymenu}}', '{{surveymenu}}', 'title', false);
 
         $surveyMenuRowData = LsDefaultDataSets::getSurveyMenuData();
-        foreach ($surveyMenuRowData as $surveyMenuRow) {
-            $oDB->createCommand()->insert("{{surveymenu}}", $surveyMenuRow);
-        }
-
+            foreach ($surveyMenuRowData as $surveyMenuRow) {
+                if (in_array($oDB->getDriverName(), array('mssql', 'sqlsrv', 'dblib'))) {
+                    unset($surveyMenuRow['id']);
+                }
+                $oDB->createCommand()->insert("{{surveymenu}}", $surveyMenuRow);
+            }
+        
         // Surveymenu entries
 
         $oDB->createCommand()->createTable('{{surveymenu_entries}}', array(
@@ -484,7 +488,8 @@ function createDatabase($oDB){
             'data' =>  "text ",
             'getdatamethod' =>  "string(192)  NOT NULL DEFAULT ''",
             'language' =>  "string(32)  NOT NULL DEFAULT 'en-GB'",
-            'active' =>  "boolean NOT NULL DEFAULT '0'",
+            'showincollapse' => 'integer DEFAULT 0',
+            'active' =>  "integer NOT NULL DEFAULT '0'",
             'changed_at' =>  "datetime NULL",
             'changed_by' =>  "integer NOT NULL DEFAULT '0'",
             'created_at' =>  "datetime NULL",
@@ -494,14 +499,14 @@ function createDatabase($oDB){
         $oDB->createCommand()->createIndex('{{idx1_surveymenu_entries}}', '{{surveymenu_entries}}', 'menu_id', false);
         $oDB->createCommand()->createIndex('{{idx5_surveymenu_entries}}', '{{surveymenu_entries}}', 'menu_title', false);
         $oDB->createCommand()->createIndex('{{surveymenu_entries_name}}', '{{surveymenu_entries}}', 'name', true);
-
         
-
         foreach($surveyMenuEntryRowData=LsDefaultDataSets::getSurveyMenuEntryData() as $surveyMenuEntryRow){
+            if (in_array($oDB->getDriverName(), array('mssql', 'sqlsrv', 'dblib'))) {
+                unset($surveyMenuEntryRow['id']);
+            }
             $oDB->createCommand()->insert("{{surveymenu_entries}}", $surveyMenuEntryRow);
+            
         }
-
-
 
         // surveys
         $oDB->createCommand()->createTable('{{surveys}}', array(
@@ -789,7 +794,7 @@ function createDatabase($oDB){
             'htmleditormode' => "string(7) default 'default'",
             'templateeditormode' => "string(7) NOT NULL default 'default'",
             'questionselectormode' => "string(7) NOT NULL default 'default'",
-            'one_time_pw' => "binary",
+            'one_time_pw' => "text",
             'dateformat' => "integer NOT NULL DEFAULT 1",
             'created' => "datetime",
             'modified' => "datetime",
@@ -809,16 +814,48 @@ function createDatabase($oDB){
 
         $oDB->createCommand()->createIndex('{{idx1_user_groups}}', '{{user_groups}}', 'name', true);
 
+        // asset version
+        $oDB->createCommand()->createTable('{{asset_version}}',array(
+            'id' => 'pk',
+            'path' => 'text NOT NULL',
+            'version' => 'integer NOT NULL',
+        ));
 
         // Set database version
         $oDB->createCommand()->insert("{{settings_global}}", ['stg_name'=> 'DBVersion' , 'stg_value' => $databaseCurrentVersion]);
 
         $oTransaction->commit();
-        return true;
     }catch(Exception $e){
-
         $oTransaction->rollback();
-        throw new CHttpException(500, $e->getMessage()." ".$e->getTraceAsString());
+        throw new CHttpException(500, $e->getMessage());
     }
-    return false;
+
+    
+    // $oTransaction = $oDB->beginTransaction();
+    // try{  
+    //     $surveyMenuRowData = LsDefaultDataSets::getSurveyMenuData();
+    //     foreach ($surveyMenuRowData as $surveyMenuRow) {
+    //         switchMSSQLIdentityInsert("surveymenu", true, $oDB);
+    //         $oDB->createCommand()->insert("{{surveymenu}}", $surveyMenuRow);
+    //         switchMSSQLIdentityInsert("surveymenu", false, $oDB);
+    //     }
+    //     $oTransaction->commit();
+    // }catch(Exception $e){
+    //     $oTransaction->rollback();
+    //     throw new CHttpException(500, $e->getMessage());
+    // }
+
+    // $oTransaction = $oDB->beginTransaction();
+    // try{  
+    //     foreach($surveyMenuEntryRowData=LsDefaultDataSets::getSurveyMenuEntryData() as $surveyMenuEntryRow){
+    //         switchMSSQLIdentityInsert("surveymenu_entries", true, $oDB);
+    //         $oDB->createCommand()->insert("{{surveymenu_entries}}", $surveyMenuEntryRow);
+    //         switchMSSQLIdentityInsert("surveymenu_entries", false, $oDB);
+    //     }
+    //     $oTransaction->commit();
+    // }catch(Exception $e){
+    //     $oTransaction->rollback();
+    //     throw new CHttpException(500, $e->getMessage());
+    // }
+    // return true;
 }

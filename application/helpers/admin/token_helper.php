@@ -88,23 +88,23 @@ function emailTokens($iSurveyID, $aResultTokens, $sType)
         }
 
         //create urls
-        $fieldsarray["{OPTOUTURL}"] = Yii::app()->getController()->createAbsoluteUrl("/optout/tokens/langcode/".trim($aTokenRow['language'])."/surveyid/{$iSurveyID}/token/{$aTokenRow['token']}");
-        $fieldsarray["{OPTINURL}"] = Yii::app()->getController()->createAbsoluteUrl("/optin/tokens/langcode/".trim($aTokenRow['language'])."/surveyid/{$iSurveyID}/token/{$aTokenRow['token']}");
-        $fieldsarray["{SURVEYURL}"] = Yii::app()->getController()->createAbsoluteUrl("/survey/index/sid/{$iSurveyID}/token/{$aTokenRow['token']}/lang/".trim($aTokenRow['language'])."/");
+        $fieldsarray["{OPTOUTURL}"] = Yii::app()->getController()->createAbsoluteUrl("/optout/tokens", array("surveyid"=>$iSurveyID, "langcode"=>trim($aTokenRow['language']), "token"=>$aTokenRow['token']));
+        $fieldsarray["{OPTINURL}"]  = Yii::app()->getController()->createAbsoluteUrl("/optin/tokens", array("surveyid"=>$iSurveyID, "langcode"=>trim($aTokenRow['language']), "token"=>$aTokenRow['token']));
+        $fieldsarray["{SURVEYURL}"] = Yii::app()->getController()->createAbsoluteUrl("/survey/index", array("sid"=>$iSurveyID, "token"=>$aTokenRow['token'], "lang"=>trim($aTokenRow['language'])));
         $aBareboneURLs = [];
         if ($bHtml) {
             foreach (array('OPTOUT', 'OPTIN', 'SURVEY') as $key) {
                 $url = $fieldsarray["{{$key}URL}"];
                 $fieldsarray["{{$key}URL}"] = "<a href='{$url}'>".htmlspecialchars($url).'</a>';
-                $aBareboneURLs['@@'.$key.'URL@@'] = $fieldsarray["{{$key}URL}"];
+                $aBareboneURLs['@@'.$key.'URL@@'] = $url;
             }
         }
 
         //mail headers
         $customheaders = array('1' => "X-surveyid: ".$iSurveyID, '2' => "X-tokenid: ".$fieldsarray["{TOKEN}"]);
-        if (getGlobalSetting('bouncemailheader'))
+        if (App()->getConfig('bouncemailheader'))
         {
-            $customheaders['3'] = getGlobalSetting('bouncemailheader');
+            $customheaders['3'] = App()->getConfig('bouncemailheader');
         }
 
         global $maildebug;

@@ -229,6 +229,38 @@ function getLanguageChangerDatasPublicList($sSelectedLanguage)
 }
 
 /**
+ * Construct flash message container
+ * Used in templatereplace to replace {FLASHMESSAGE} in startpage.tstpl
+ *
+ * @return string
+ */
+function makeFlashMessage() {
+    global $surveyid;
+    $html = "";
+
+    $language = Yii::app()->getLanguage();
+    $originalPrefix = Yii::app()->user->getStateKeyPrefix();
+    // Bug in Yii? Getting the state-key prefix changes the locale, so set the language manually after.
+    Yii::app()->setLanguage($language);
+    Yii::app()->user->setStateKeyPrefix('frontend');
+
+    $mapYiiToBootstrapClass = array(
+        'error' => 'danger',
+        'success' => 'success',
+        'notice' => 'info'
+        // no warning in Yii?
+    );
+
+    foreach (Yii::app()->user->getFlashes() as $key => $message) {
+        $html .= "<div class='alert alert-" . $mapYiiToBootstrapClass[$key] . " alert-dismissible flash-" . $key . "'>" . $message . "</div>\n";
+    }
+
+    Yii::app()->user->setStateKeyPrefix($originalPrefix);
+
+    return $html;
+}
+
+/**
 * checkUploadedFileValidity used in SurveyRuntimeHelper
 */
 function checkUploadedFileValidity($surveyid, $move, $backok = null)
@@ -255,7 +287,7 @@ function checkUploadedFileValidity($surveyid, $move, $backok = null)
                     // else, its ajax, don't check, bypass it.
 
                     if ($json != "" && $json != "[]") {
-                        $phparray = json_decode(stripslashes($json));
+                        $phparray = json_decode(urldecode($json));
                         if ($phparray[0]->size != "") {
 // ajax
                             $filecount = count($phparray);
@@ -442,6 +474,8 @@ function submittokens($quotaexit = false)
                 //Only send confirmation email if there is a valid email address
             $sToAddress = validateEmailAddresses($token->email);
             if ($sToAddress) {
+                // #14499: Add first and last name to the "To" of confirmation email
+                $to = array($token->firstname." ".$token->lastname." <".$sToAddress[0].">");
                 $aAttachments = unserialize($thissurvey['attachments']);
 
                 $aRelevantAttachments = array();
@@ -462,7 +496,7 @@ function submittokens($quotaexit = false)
                 $event->set('type', 'confirm');
                 $event->set('model', 'confirm');
                 $event->set('subject', $subject);
-                $event->set('to', $sToAddress);
+                $event->set('to', $to);
                 $event->set('body', $message);
                 $event->set('from', $from);
                 $event->set('bounce', getBounceEmail($surveyid));
@@ -603,7 +637,7 @@ function sendSubmitNotifications($surveyid)
         foreach ($aEmailNotificationTo as $sRecipient) {
         if (!SendEmailMessage($sMessage, $sSubject, $sRecipient, $sFrom, $sitename, $bIsHTML, getBounceEmail($surveyid), $aRelevantAttachments)) {
                 if ($debug > 0) {
-                    echo '<br />Email could not be sent. Reason: '.$maildebug.'<br/>';
+                    echo '<br />Email could not be sent. Reason: '.CHtml::encode($maildebug).'<br/>';
                 }
             }
         }
@@ -629,7 +663,7 @@ function sendSubmitNotifications($surveyid)
         foreach ($aEmailResponseTo as $sRecipient) {
         if (!SendEmailMessage($sMessage, $sSubject, $sRecipient, $sFrom, $sitename, $bIsHTML, getBounceEmail($surveyid), $aRelevantAttachments)) {
                 if ($debug > 0) {
-                    echo '<br />Email could not be sent. Reason: '.$maildebug.'<br/>';
+                    echo '<br />Email could not be sent. Reason: '.CHtml::encode($maildebug).'<br/>';
                 }
             }
         }
@@ -718,19 +752,28 @@ function buildsurveysession($surveyid, $preview = false)
     // Reset all the session variables and start again
     resetAllSessionVariables($surveyid);
 
-    // Multi lingual support order : by REQUEST, if not by Token->language else by survey default language
-    if (returnGlobal('lang', true)) {
-        $language_to_set = returnGlobal('lang', true);
-    } elseif (isset($oTokenEntry) && $oTokenEntry) {
-        // If survey have token : we have a $oTokenEntry
-        // Can use $oTokenEntry = Token::model($surveyid)->findByAttributes(array('token'=>$clienttoken)); if we move on another function : this par don't validate the token validity
-        $language_to_set = $oTokenEntry->language;
-    } else {
-        $language_to_set = $thissurvey['language'];
+    // NOTE: All of this is already done in survey controller.
+    // We keep it here only for Travis Tested thar are still not using Selenium
+    // As soon as the tests are rewrote to use selenium, those lines can be removed
+    $lang       = $_SESSION['survey_'.$surveyid]['s_lang'];
+    if (empty($lang)){
+
+        // Multi lingual support order : by REQUEST, if not by Token->language else by survey default language
+
+           if (returnGlobal('lang', true)) {
+               $language_to_set = returnGlobal('lang', true);
+           } elseif (isset($oTokenEntry) && $oTokenEntry) {
+               // If survey have token : we have a $oTokenEntry
+               // Can use $oTokenEntry = Token::model($surveyid)->findByAttributes(array('token'=>$clienttoken)); if we move on another function : this par don't validate the token validity
+               $language_to_set = $oTokenEntry->language;
+           } else {
+               $language_to_set = $thissurvey['language'];
+           }
+            // Always SetSurveyLanguage : surveys controller SetSurveyLanguage too, if different : broke survey (#09769)
+           SetSurveyLanguage($surveyid, $language_to_set);
     }
 
-    // Always SetSurveyLanguage : surveys controller SetSurveyLanguage too, if different : broke survey (#09769)
-    SetSurveyLanguage($surveyid, $language_to_set);
+
     UpdateGroupList($surveyid, $_SESSION['survey_'.$surveyid]['s_lang']);
 
     $totalquestions               = $survey->countTotalQuestions;
@@ -837,19 +880,21 @@ function prefillFromCommandLine($surveyid)
     } else {
         $startingValues = $_SESSION['survey_'.$surveyid]['startingValues'];
     }
-
-    if (isset($_GET)) {
-
-        foreach ($_GET as $k=>$v) {
-
-            if (!in_array($k, $reservedGetValues) && isset($_SESSION['survey_'.$surveyid]['fieldmap'][$k])) {
-                $startingValues[$k] = $v;
-            } else {
-                // Search question codes to use those for prefilling.
-                foreach ($_SESSION['survey_'.$surveyid]['fieldmap'] as $sgqa => $details) {
-                    if ($details['title'] == $k) {
-                        $startingValues[$sgqa] = $v;
-                    }
+    if (Yii::app()->getRequest()->getRequestType()=='GET') {
+        $getValues = array_diff_key($_GET,array_combine($reservedGetValues, $reservedGetValues));
+        if(!empty($getValues)) {
+            $qcode2sgqa = array();
+            Yii::import('application.helpers.viewHelper');
+            foreach ($_SESSION['survey_'.$surveyid]['fieldmap'] as $sgqa => $details) {
+                $qcode2sgqa[viewHelper::getFieldCode($details,array('LEMcompat'=>true))] = $sgqa;
+            }
+            foreach ($getValues as $k=>$v) {
+                if (isset($_SESSION['survey_'.$surveyid]['fieldmap'][$k])) {
+                    // sXgXqa prefilling
+                    $startingValues[$k] = $v;
+                } elseif( array_key_exists($k,$qcode2sgqa) ) {
+                    // EM code prefilling
+                    $startingValues[$qcode2sgqa[$k]] = $v;
                 }
             }
         }
@@ -1244,7 +1289,7 @@ function getRenderWay($renderToken, $renderCaptcha)
  * @param int $surveyid
  * @return void
  */
-function renderRenderWayForm($renderWay, array $scenarios, $sTemplateViewPath, $aEnterTokenData, $surveyid)
+function renderRenderWayForm($renderWay, array $scenarios, $sTemplateViewPath, $aEnterTokenData, $surveyid, $aSurveyInfo=null)
 {
     switch ($renderWay) {
         case "main": //Token required, maybe Captcha required
@@ -1258,14 +1303,28 @@ function renderRenderWayForm($renderWay, array $scenarios, $sTemplateViewPath, $
                 Yii::app()->getController()->createAction('captcha');
             }
             $oSurvey = Survey::model()->findByPk($surveyid);
+            if(empty($aSurveyInfo)) {
+                $aSurveyInfo  =  getsurveyinfo($surveyid,App()->getLanguage());
+            }
             // Rendering layout_user_forms.twig
             $thissurvey                     = $oSurvey->attributes;
             $thissurvey["aForm"]            = $aForm;
             $thissurvey['surveyUrl']        = App()->createUrl("/survey/index", array("sid"=>$surveyid));
             $thissurvey['include_content']  = 'userforms';
+
+            Yii::app()->clientScript->registerScriptFile(Yii::app()->getConfig("generalscripts").'nojs.js', CClientScript::POS_HEAD);
             
-            
-            Yii::app()->twigRenderer->renderTemplateFromFile("layout_user_forms.twig", array('aSurveyInfo'=>$thissurvey), false);
+            // Language selector
+            if ($aSurveyInfo['alanguageChanger']['show']){
+                $aSurveyInfo['alanguageChanger']['datas']['targetUrl'] = $thissurvey['surveyUrl'];
+            }
+            $thissurvey['alanguageChanger'] = $aSurveyInfo['alanguageChanger'];
+
+            $aData['aSurveyInfo'] = $thissurvey;
+
+            $aData['aSurveyInfo'] = array_merge($aSurveyInfo, $aData['aSurveyInfo']);
+
+            Yii::app()->twigRenderer->renderTemplateFromFile("layout_user_forms.twig", $aData, false);
             break;
 
         case "register": //Register new user
@@ -1423,9 +1482,10 @@ function getNavigatorDatas()
     // SAVE BUTTON
     if ($thissurvey['allowsave'] == "Y") {
 
-        App()->getClientScript()->registerScript("activateActionLink", "activateActionLink();\n", CClientScript::POS_END);
+        App()->getClientScript()->registerScript("activateActionLink", "activateActionLink();\n", LSYii_ClientScript::POS_POSTSCRIPT);
 
         // Fill some test here, more clear ....
+        $bAnonymized                = $thissurvey["anonymized"] == 'Y';
         $bTokenanswerspersistence   = $thissurvey['tokenanswerspersistence'] == 'Y' && tableExists('tokens_'.$surveyid);
         $bAlreadySaved              = isset($_SESSION['survey_'.$surveyid]['scid']);
         $iSessionStep               = (isset($_SESSION['survey_'.$surveyid]['step']) ? $_SESSION['survey_'.$surveyid]['step'] : false);
@@ -1433,14 +1493,14 @@ function getNavigatorDatas()
 
         // Find out if the user has any saved data
         if ($thissurvey['format'] == 'A') {
-            if (!$bTokenanswerspersistence && !$bAlreadySaved) {
+            if ((!$bTokenanswerspersistence || $bAnonymized) && !$bAlreadySaved) {
                 $aNavigator['load']['show'] = true;
             }
             $aNavigator['save']['show'] = true;
         } elseif (!$iSessionStep) {
 
             //Welcome page, show load (but not save)
-            if (!$bTokenanswerspersistence && !$bAlreadySaved) {
+            if ((!$bTokenanswerspersistence || $bAnonymized) && !$bAlreadySaved) {
                 $aNavigator['load']['show'] = true;
             }
 
@@ -1449,7 +1509,7 @@ function getNavigatorDatas()
             }
         } elseif ($iSessionMaxStep == 1 && $thissurvey['showwelcome'] == "N") {
             //First page, show LOAD and SAVE
-            if (!$bTokenanswerspersistence && !$bAlreadySaved) {
+            if ((!$bTokenanswerspersistence || $bAnonymized) && !$bAlreadySaved) {
                 $aNavigator['load']['show'] = true;
             }
 
@@ -1457,7 +1517,7 @@ function getNavigatorDatas()
         } elseif (getMove() != "movelast") {
             // Not on last page or submited survey
             $aNavigator['save']['show'] = true;
-        }
+        } 
     }
 
     return $aNavigator;
@@ -1466,10 +1526,11 @@ function getNavigatorDatas()
 /**
  * Caculate assessement scores
  *
- * @param mixed $surveyid
+ * @param integer $surveyid
+ * @param boolean $onlyCurrent : only current ( ASSESSMENT_CURRENT_TOTAL )
  * @return array
  */
-function doAssessment($surveyid)
+function doAssessment($surveyid, $onlyCurrent = true)
 {
     /* Default : show nothing */
     $assessment = array(
@@ -1480,151 +1541,163 @@ function doAssessment($surveyid)
         'subtotal' => array(
             'show' => false,
         ),
+        'total_score' => "", // Current total is set to 0 if assessments == "Y", empty string if not.
+        'subtotal_score' => array(), // Score by group, used only on endpage currently
     );
-    $survey = Survey::model()->findByPk($surveyid);
-
-    if (Survey::model()->findByPk($surveyid)->assessments != "Y") {
-        return $assessment;
+    $oSurvey = Survey::model()->findByPk($surveyid);
+    if ($oSurvey->assessments != "Y") {
+        return array(
+            'show'=> false,
+            'datas' => $assessment,
+            'currentotal' => '',
+        );
     }
-    $baselang = $survey->language;
+    $currentLanguage = App()->getLanguage();
+    $baselang = $oSurvey->language;
     if (!isset($_SESSION['survey_'.$surveyid]['s_lang'])) {
-        $_SESSION['survey_'.$surveyid]['s_lang'] = $baselang;
+        /* Then not inside survey … can surely return directly */
+        return array(
+            'show'=> false,
+            'datas' => $assessment,
+            'currentotal' => '',
+        );
     }
-    $total = 0;
-    $query = "SELECT * FROM {{assessments}}
-        WHERE sid=$surveyid and language='".$_SESSION['survey_'.$surveyid]['s_lang']."'
-        ORDER BY scope, id";
-
-    if ($result = dbExecuteAssoc($query)) {
-        $aResultSet = $result->readAll();
-
-        if (count($aResultSet) > 0) {
-
-            foreach ($aResultSet as $row) {
-
-                if ($row['scope'] == "G") {
-                    $assessment['group'][$row['gid']][] = array("name"=>$row['name'],
-                        "min"     => $row['minimum'],
-                        "max"     => $row['maximum'],
-                        "message" => $row['message']
-                    );
+    /* Always count and count only one time … */
+    $fieldmap = createFieldMap($oSurvey, "full", false, false, $currentLanguage);
+    $total    = 0;
+    $groups   = array();
+    foreach ($fieldmap as $field) {
+        // Init Assessment Value
+        $assessmentValue = null;
+        if (in_array($field['type'], array('1', 'F', 'H', 'W', 'Z', 'L', '!', 'M', 'O', 'P'))) {
+            $fieldmap[$field['fieldname']]['assessment_value'] = 0;
+            if (isset($_SESSION['survey_'.$surveyid][$field['fieldname']])) {
+                //Multiflexi choice  - result is the assessment attribute value
+                if (($field['type'] == "M") || ($field['type'] == "P")) {
+                    if ($_SESSION['survey_'.$surveyid][$field['fieldname']] == "Y") {
+                        $aAttributes     = QuestionAttribute::model()->getQuestionAttributes($field['qid']);
+                        $assessmentValue = (int) $aAttributes['assessment_value'];
+                    }
                 } else {
-                    $assessment['total']['show'] = true;
-                    $assessment['total'][] = array("name"=>$row['name'],
-                        "min"     => $row['minimum'],
-                        "max"     => $row['maximum'],
-                        "message" => $row['message']
+                    // Single choice question
+                    $oAssessementAnswer = Answer::model()->find(array(
+                        'select' => 'code,assessment_value',
+                        'condition' => 'qid = :qid and language = :language and code = :code', // Same assessment_value for all language, get primary
+                        'params' => array(":qid" => $field['qid'],":language" => $baselang, ":code" => $_SESSION['survey_'.$surveyid][$field['fieldname']])
+                    ));
+                    if ($oAssessementAnswer) {
+                        $assessmentValue    = $oAssessementAnswer->assessment_value;
+                    }
+                }
+
+                $fieldmap[$field['fieldname']]['assessment_value'] = $assessmentValue;
+            }
+            $groups[] = $field['gid'];
+        }
+
+        // If this is a question (and not a survey field, like ID), save asessment value
+        if ($field['qid'] > 0) {
+            /**
+             * Allow Plugin to update assessment value
+             */
+            // Prepare Event Info
+            $event = new PluginEvent('afterSurveyQuestionAssessment');
+            $event->set('surveyId', $surveyid);
+            $event->set('lang', $currentLanguage);
+            $event->set('gid', $field['gid']);
+            $event->set('qid', $field['qid']);
+
+            if (array_key_exists('sqid', $field)) {
+                $event->set('sqid', $field['sqid']);
+            }
+
+            if (array_key_exists('aid', $field)) {
+                $event->set('aid', $field['aid']);
+            }
+
+            $event->set('assessmentValue', $assessmentValue);
+            if (isset($_SESSION['survey_'.$surveyid][$field['fieldname']])) {
+                $event->set('response', $_SESSION['survey_'.$surveyid][$field['fieldname']]);
+            }
+            // Dispatch Event and Get new assessment value
+            App()->getPluginManager()->dispatchEvent($event);
+            $updatedAssessmentValue = $event->get('assessmentValue', $assessmentValue);
+
+            /**
+             * Save assessment value on the response
+             */
+            $fieldmap[$field['fieldname']]['assessment_value'] = $updatedAssessmentValue;
+            $total = $total + $updatedAssessmentValue;
+        }
+    }
+    $assessment['total_score'] = $total;
+    if($onlyCurrent) {
+        return array(
+            'show'=> false,
+            'datas' => $assessment,
+            'currentotal' => $total,
+        );
+    }
+    /* count by group */
+    $groups = array_unique($groups);
+    $subtotal = array();
+    foreach ($groups as $group) {
+        $grouptotal = 0;
+        foreach ($fieldmap as $field) {
+            if ($field['gid'] == $group && isset($field['assessment_value'])) {
+                if (isset ($_SESSION['survey_'.$surveyid][$field['fieldname']])) {
+                    $grouptotal = $grouptotal + $field['assessment_value'];
+                }
+            }
+        }
+        $subtotal[$group] = $grouptotal;
+    }
+
+    /* Get current assesment (can be only for last page …) */
+    $aoAssessements = Assessment::model()->findAll(array(
+        'condition' => "sid = :sid and language = :language",
+        'order' => 'scope,id', // No real order in assessment, here : group first (why ?) and by creation
+        'params' => array(':sid' => $surveyid,':language' => $currentLanguage)
+    ));
+    if(!empty($aoAssessements)) {
+        foreach ($aoAssessements as $oAssessement) {
+            if ($oAssessement->scope == "G") {
+                /* send only current valid assessments */
+                if($oAssessement->minimum <= $subtotal[$oAssessement->gid] && $subtotal[$oAssessement->gid] <= $oAssessement->maximum) {
+                    $assessment['group'][$oAssessement->gid][] = array(
+                        "name"    => $oAssessement->name,
+                        "min"     => $oAssessement->minimum,
+                        "max"     => $oAssessement->maximum,
+                        "message" => $oAssessement->message
                     );
                 }
-            }
-            $fieldmap = createFieldMap($survey, "full", false, false, $_SESSION['survey_'.$surveyid]['s_lang']);
-            $i        = 0;
-            $total    = 0;
-            $groups   = array();
-
-            foreach ($fieldmap as $field) {
-
-                // Init Assessment Value
-                $assessmentValue = null;
-
-                if (in_array($field['type'], array('1', 'F', 'H', 'W', 'Z', 'L', '!', 'M', 'O', 'P'))) {
-
-                    $fieldmap[$field['fieldname']]['assessment_value'] = 0;
-
-                    if (isset($_SESSION['survey_'.$surveyid][$field['fieldname']])) {
-
-                        //Multiflexi choice  - result is the assessment attribute value
-                        if (($field['type'] == "M") || ($field['type'] == "P")) {
-                            if ($_SESSION['survey_'.$surveyid][$field['fieldname']] == "Y") {
-
-                                $aAttributes     = QuestionAttribute::model()->getQuestionAttributes($field['qid']);
-                                $assessmentValue = (int) $aAttributes['assessment_value'];
-                            }
-                        } else {
-                                // Single choice question
-                            $usquery  = "SELECT assessment_value FROM {{answers}} where qid=".$field['qid']." and language='$baselang' and code=".App()->db->quoteValue($_SESSION['survey_'.$surveyid][$field['fieldname']]);
-                            $usresult = dbExecuteAssoc($usquery); //Checked
-
-                            if ($usresult) {
-                                $usrow              = $usresult->read();
-                                $assessmentValue    = $usrow['assessment_value'];
-                            //    $total              = $total+$usrow['assessment_value'];
-                            }
-                        }
-
-                        $fieldmap[$field['fieldname']]['assessment_value'] = $assessmentValue;
-                    }
-                    $groups[] = $field['gid'];
+            } else {
+                /* send only current valid assessments */
+                if($oAssessement->minimum <= $total && $total <= $oAssessement->maximum) {
+                    $assessment['total']['show'] = true;
+                    $assessment['total'][] = array(
+                        "name"    => $oAssessement->name,
+                        "min"     => $oAssessement->minimum,
+                        "max"     => $oAssessement->maximum,
+                        "message" => $oAssessement->message
+                    );
                 }
-
-                // If this is a question (and not a survey field, like ID), save asessment value
-                if ($field['qid'] > 0) {
-                    /**
-                     * Allow Plugin to update assessment value
-                     */
-                    // Prepare Event Info
-                    $event = new PluginEvent('afterSurveyQuestionAssessment');
-                    $event->set('surveyId', $surveyid);
-                    $event->set('lang', $_SESSION['survey_'.$surveyid]['s_lang']);
-                    $event->set('gid', $field['gid']);
-                    $event->set('qid', $field['qid']);
-
-                    if (array_key_exists('sqid', $field)) {
-
-                        $event->set('sqid', $field['sqid']);
-                    }
-
-                    if (array_key_exists('aid', $field)) {
-
-                        $event->set('aid', $field['aid']);
-                    }
-
-                    $event->set('assessmentValue', $assessmentValue);
-
-                    if (isset($_SESSION['survey_'.$surveyid][$field['fieldname']])) {
-                        $event->set('response', $_SESSION['survey_'.$surveyid][$field['fieldname']]);
-                    }
-
-                    // Dispatch Event and Get new assessment value
-                    App()->getPluginManager()->dispatchEvent($event);
-                    $updatedAssessmentValue = $event->get('assessmentValue', $assessmentValue);
-
-                    /**
-                     * Save assessment value on the response
-                     */
-                    $fieldmap[$field['fieldname']]['assessment_value'] = $updatedAssessmentValue;
-                    $total = $total + $updatedAssessmentValue;
-                }
-
-                $i++;
-            }
-
-            $groups = array_unique($groups);
-
-            foreach ($groups as $group) {
-                $grouptotal = 0;
-
-                foreach ($fieldmap as $field) {
-                    if ($field['gid'] == $group && isset($field['assessment_value'])) {
-
-                        if (isset ($_SESSION['survey_'.$surveyid][$field['fieldname']])) {
-                            $grouptotal = $grouptotal + $field['assessment_value'];
-                        }
-                    }
-                }
-                $subtotal[$group] = $grouptotal;
             }
         }
 
-        if (!empty($subtotal)) {
+        if (!empty($subtotal) && !empty($assessment['group'])) {
             $assessment['subtotal']['show']  = true;
             $assessment['subtotal']['datas'] = $subtotal;
         }
-
-        $assessment['subtotal_score'] = (isset($subtotal)) ? $subtotal : '';
-        $assessment['total_score']    = (isset($total)) ? $total : '';
+        $assessment['subtotal_score'] = $subtotal;
+        $assessment['total_score']    = $total;
         //$aDatas     = array('total' => $total, 'assessment' => $assessment, 'subtotal' => $subtotal, );
-        return array('show'=>($assessment['subtotal']['show'] || $assessment['total']['show']), 'datas' => $assessment);
+        
+        return array(
+            'show'=>($assessment['subtotal']['show'] || $assessment['total']['show']),
+            'datas' => $assessment,
+            'currentotal' => $total,
+        );
 
     }
 }
@@ -1846,20 +1919,26 @@ function checkCompletedQuota($surveyid, $return = false)
     $thissurvey['aQuotas']                       = array();
     $thissurvey['aQuotas']['sMessage']           = $sMessage;
     $thissurvey['aQuotas']['bShowNavigator']     = !$closeSurvey;
-    $thissurvey['aQuotas']['sQuotaStep']         = isset($_SESSION['survey_'.$surveyid]['step']) ? $_SESSION['survey_'.$surveyid]['step'] : 0; // Surely not needed
     $thissurvey['aQuotas']['sClientToken']       = $sClientToken;
+    $thissurvey['aQuotas']['sQuotaStep']         = 'returnfromquota';
     $thissurvey['aQuotas']['aPostedQuotaFields'] = isset($aPostedQuotaFields) ? $aPostedQuotaFields : '';
     $thissurvey['aQuotas']['sPluginBlocks']      = implode("\n", $blocks);
     $thissurvey['aQuotas']['sUrlDescription']    = $sUrlDescription;
     $thissurvey['aQuotas']['sUrl']               = $sUrl;
+    $thissurvey['active']                        = 'Y';
 
-    $thissurvey['aQuotas']['hiddeninputs'] = '<input type="hidden" name="sid"      value="'.$thissurvey['sid'].'" />
-                                                   <input type="hidden" name="token"    value="'.$thissurvey['aQuotas']['sClientToken'].'" />
-                                                   <input type="hidden" name="thisstep" value="'.$thissurvey['aQuotas']['sQuotaStep'].'" />';
 
-    foreach ($thissurvey['aQuotas']['aPostedQuotaFields'] as $field => $post) {
-        $thissurvey['aQuotas']['hiddeninputs'] .= '<input type="hidden" name="'.$field.'"   value="'.$post.'" />';
+    $thissurvey['aQuotas']['hiddeninputs'] = '<input type="hidden" name="sid"      value="'.$surveyid.'" />
+                                              <input type="hidden" name="token"    value="'.$thissurvey['aQuotas']['sClientToken'].'" />
+                                              <input type="hidden" name="thisstep" value="'.(isset($_SESSION['survey_'.$surveyid]['step']) ? $_SESSION['survey_'.$surveyid]['step'] : 0).'" />';
+
+
+    if (!empty($thissurvey['aQuotas']['aPostedQuotaFields'])){
+        foreach ($thissurvey['aQuotas']['aPostedQuotaFields'] as $field => $post) {
+            $thissurvey['aQuotas']['hiddeninputs'] .= '<input type="hidden" name="'.$field.'"   value="'.$post.'" />';
+        }
     }
+
 
     //field,post in aSurveyInfo.aQuotas.aPostedQuotaFields %}
 
@@ -1980,6 +2059,11 @@ function killSurveySession($iSurveyID)
     unset($_SESSION['survey_'.$iSurveyID]);
     // Force EM to refresh
     LimeExpressionManager::SetDirtyFlag();
+
+    //  unsetting LEMsingleton from session so new survey execution would start with new LEM instance
+    //  SetDirtyFlag() method doesn't reset LEM properly
+    //  this solution fixes bug: https://bugs.limesurvey.org/view.php?id=10162
+    unset($_SESSION["LEMsingleton"]);
 }
 
 /**

@@ -30,7 +30,7 @@ chmod -R 776 tests/tmp
 chmod -R 776 tests/tmp/runtime
 php application/commands/console.php install admin password TravisLS no@email.com verbose
 cp application/config/config-sample-mysql.php application/config/config.php
-sed -i '59s/.*/        "debug"=>2,/' application/config/config.php
+# sed -i '59s/.*/        "debug"=>2,/' application/config/config.php
 
 sudo apt-get update > /dev/null
 sudo apt-get -y --force-yes install apache2 libapache2-mod-fastcgi nodejs firefox
@@ -51,7 +51,7 @@ sudo service apache2 restart
 
 # Firefox headless.
 wget "https://selenium-release.storage.googleapis.com/3.7/selenium-server-standalone-3.7.1.jar"
-wget "https://github.com/mozilla/geckodriver/releases/download/v0.19.1/geckodriver-v0.19.1-linux64.tar.gz"
-tar xvzf geckodriver-v0.19.1-linux64.tar.gz
+wget "https://github.com/mozilla/geckodriver/releases/download/v0.23.0/geckodriver-v0.23.0-linux64.tar.gz"
+tar xvzf geckodriver-v0.23.0-linux64.tar.gz
 export MOZ_HEADLESS=1
 java -jar selenium-server-standalone-3.7.1.jar -enablePassThrough false 2> /dev/null &

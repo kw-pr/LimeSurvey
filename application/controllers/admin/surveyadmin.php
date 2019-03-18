@@ -172,6 +172,12 @@ class SurveyAdmin extends Survey_Common_Action
         $aData['notificationsettingsdata']  = array_merge($aData, $this->_tabNotificationDataManagement($esrow));
         $aData['tokensettingsdata']         = array_merge($aData, $this->_tabTokens($esrow));
 
+        // set new survey settings from global settings
+        $aData['presentationsettingsdata']['showqnumcode'] = getGlobalSetting('showqnumcode');
+        $aData['presentationsettingsdata']['shownoanswer'] = getGlobalSetting('shownoanswer');
+        $aData['presentationsettingsdata']['showgroupinfo'] = getGlobalSetting('showgroupinfo');
+        $aData['presentationsettingsdata']['showxquestions'] = getGlobalSetting('showxquestions');
+
         $aViewUrls[] = 'newSurvey_view';
 
         $arrayed_data                                              = array();
@@ -179,7 +185,6 @@ class SurveyAdmin extends Survey_Common_Action
         $arrayed_data['data']                                      = $aData;
         $arrayed_data['title_bar']['title']                        = gT('New survey');
         $arrayed_data['fullpagebar']['savebutton']['form']         = 'addnewsurvey';
-        $arrayed_data['fullpagebar']['saveandclosebutton']['form'] = 'addnewsurvey';
         $arrayed_data['fullpagebar']['closebutton']['url']         = 'admin/index'; // Close button
 
         $this->_renderWrappedTemplate('survey', $aViewUrls, $arrayed_data);
@@ -267,7 +272,8 @@ class SurveyAdmin extends Survey_Common_Action
             // Create temporary directory
             // If dangerous content is unzipped
             // then no one will know the path
-            $extractdir  = $this->_tempdir(Yii::app()->getConfig('tempdir'));
+            Yii::import('application.helpers.common_helper', true);
+            $extractdir  = createRandomTempDir();
             $zipfilename = $_FILES['the_file']['tmp_name'];
             $basedestdir = Yii::app()->getConfig('uploaddir')."/surveys";
             $destdir     = $basedestdir."/$iSurveyID/";
@@ -326,18 +332,76 @@ class SurveyAdmin extends Survey_Common_Action
     }
 
     /**
-     * @todo
+     * Change survey theme for multiple survey at once.
+     * Called from survey list massive actions
      */
-    public function changetemplate($iSurveyID, $template)
+    public function changeMultipleTheme()
     {
-        if (!Permission::model()->hasSurveyPermission($iSurveyID, 'surveyactivation', 'update')) {
-            die('No permission');
+        $sSurveys = $_POST['sItems'];
+        $aSIDs = json_decode($sSurveys);
+        $aResults = array();
+
+        $sTemplate = App()->request->getPost('theme');
+
+        foreach ($aSIDs as $iSurveyID){
+            $aResults = self::changetemplate($iSurveyID, $sTemplate, $aResults, true);
         }
+
+        Yii::app()->getController()->renderPartial('ext.admin.survey.ListSurveysWidget.views.massive_actions._action_results', array('aResults'=>$aResults,'successLabel'=>$sTemplate));
+    }
+
+    /**
+     * Change survey group for multiple survey at once.
+     * Called from survey list massive actions
+     */
+    public function changeMultipleSurveyGroup()
+    {
+        $sSurveys = $_POST['sItems'];
+        $aSIDs = json_decode($sSurveys);
+        $aResults = array();
+
+        $iSurveyGroupId = sanitize_int(App()->request->getPost('surveygroupid'));
+
+        foreach ($aSIDs as $iSurveyID){
+            $oSurvey = Survey::model()->findByPk($iSurveyID);
+            $oSurvey->gsid = $iSurveyGroupId;
+            $aResults[$iSurveyID] = $oSurvey->save();
+        }
+
+        Yii::app()->getController()->renderPartial('ext.admin.survey.ListSurveysWidget.views.massive_actions._action_results', array('aResults'=>$aResults,'successLabel'=>gT("Success")));
+    }
+
+    /**
+    * Update the theme of a survey
+    *
+    * @access public
+    * @param int     $iSurveyID
+    * @param string  $template      the survey theme name
+    * @param array   $aResults      if the method is called from changeMultipleTheme(), it will update its array of results
+    * @param boolean $bReturn       should the method update and return aResults
+    * @return mixed                 null or array
+     */
+    public function changetemplate($iSurveyID, $template, $aResults = null, $bReturn = false)
+    {
 
         $iSurveyID  = sanitize_int($iSurveyID);
         $sTemplate  = sanitize_dirname($template);
 
         $survey           = Survey::model()->findByPk($iSurveyID);
+
+
+        if (!Permission::model()->hasSurveyPermission($iSurveyID, 'surveyactivation', 'update')) {
+
+            if (!empty($bReturn)){
+                $aResults[$iSurveyID]['title']  = $survey->correct_relation_defaultlanguage->surveyls_title;
+                $aResults[$iSurveyID]['result'] = false;
+                return $aResults;
+            }else{
+                die('No permission');
+            }
+        }
+
+
         $survey->template = $sTemplate;
         $survey->save();
 
@@ -347,6 +411,12 @@ class SurveyAdmin extends Survey_Common_Action
 
         // This will force the generation of the entry for survey group
         TemplateConfiguration::checkAndcreateSurveyConfig($iSurveyID);
+
+        if (!empty($bReturn)){
+            $aResults[$iSurveyID]['title']  = $survey->correct_relation_defaultlanguage->surveyls_title;
+            $aResults[$iSurveyID]['result'] = true;
+            return $aResults;
+        }
     }
 
     /**
@@ -415,7 +485,7 @@ class SurveyAdmin extends Survey_Common_Action
 
         // Last survey visited
         $setting_entry = 'last_survey_'.Yii::app()->user->getId();
-        setGlobalSetting($setting_entry, $iSurveyID);
+        SettingGlobal::setSetting($setting_entry, $iSurveyID);
 
         $aData['surveybar']['buttons']['view'] = true;
         $aData['surveybar']['returnbutton']['url'] = $this->getController()->createUrl("admin/survey/sa/listsurveys");
@@ -743,6 +813,10 @@ class SurveyAdmin extends Survey_Common_Action
                 $aData['sNewTimingsTableName'] = $sNewTimingsTableName;
             }
 
+            $event = new PluginEvent('afterSurveyDeactivate');
+            $event->set('surveyId', $iSurveyID);
+            App()->getPluginManager()->dispatchEvent($event);
+
             $aData['surveyid'] = $iSurveyID;
             Yii::app()->db->schema->refresh();
         }
@@ -943,7 +1017,7 @@ class SurveyAdmin extends Survey_Common_Action
      * @uses self::_tabTokens()
      * @uses self::_tabPanelIntegration()
      * @uses self::_tabResourceManagement()
-     * 
+     *
      * @param int $iSurveyID
      * @param string $subaction
      * @return void
@@ -976,6 +1050,12 @@ class SurveyAdmin extends Survey_Common_Action
 
         $templateData = array_merge($this->_getGeneralTemplateData($iSurveyID), $templateData);
         $this->_registerScriptFiles();
+
+        // override survey settings if global settings exist
+        $templateData['showqnumcode'] = getGlobalSetting('showqnumcode') !=='choose'?getGlobalSetting('showqnumcode'):$survey->showqnumcode;
+        $templateData['shownoanswer'] = getGlobalSetting('shownoanswer') !=='choose'?getGlobalSetting('shownoanswer'):$survey->shownoanswer;
+        $templateData['showgroupinfo'] = getGlobalSetting('showgroupinfo') !=='2'?getGlobalSetting('showgroupinfo'):$survey->showgroupinfo;
+        $templateData['showxquestions'] = getGlobalSetting('showxquestions') !=='choose'?getGlobalSetting('showxquestions'):$survey->showxquestions;
 
         //Start collecting aData
         $aData['surveyid'] = $iSurveyID;
@@ -1308,6 +1388,7 @@ class SurveyAdmin extends Survey_Common_Action
                 $aData['action'] = $action;
                 if (isset($aImportResults['newsid'])) {
                     $aData['sLink'] = $this->getController()->createUrl('admin/survey/sa/view/surveyid/'.$aImportResults['newsid']);
+                    $aData['sLinkApplyThemeOptions'] = 'admin/survey/sa/applythemeoptions/surveyid/'.$aImportResults['newsid'];
                 }
             }
         }
@@ -1316,15 +1397,17 @@ class SurveyAdmin extends Survey_Common_Action
             LimeExpressionManager::SetDirtyFlag();
             LimeExpressionManager::singleton();
             // Why this @ !
-            @LimeExpressionManager::UpgradeConditionsToRelevance($aImportResults['newsid']);
+            LimeExpressionManager::SetSurveyId($aImportResults['newsid']);
+            LimeExpressionManager::RevertUpgradeConditionsToRelevance($aImportResults['newsid']);
+            LimeExpressionManager::UpgradeConditionsToRelevance($aImportResults['newsid']);
             @LimeExpressionManager::StartSurvey($oSurvey->sid, 'survey', $oSurvey->attributes, true);
-            @LimeExpressionManager::StartProcessingPage(true, true);
+            LimeExpressionManager::StartProcessingPage(true, true);
             $aGrouplist = QuestionGroup::model()->findAllByAttributes(['sid'=>$aImportResults['newsid']]);
             foreach ($aGrouplist as $aGroup) {
-                @LimeExpressionManager::StartProcessingGroup($aGroup['gid'], $oSurvey->anonymized != 'Y', $aImportResults['newsid']);
-                @LimeExpressionManager::FinishProcessingGroup();
+                LimeExpressionManager::StartProcessingGroup($aGroup['gid'], $oSurvey->anonymized != 'Y', $aImportResults['newsid']);
+                LimeExpressionManager::FinishProcessingGroup();
             }
-            @LimeExpressionManager::FinishProcessingPage();
+            LimeExpressionManager::FinishProcessingPage();
         }
 
         $this->_renderWrappedTemplate('survey', 'importSurvey_view', $aData);
@@ -1444,7 +1527,7 @@ class SurveyAdmin extends Survey_Common_Action
      */
     private function _reorderGroup($iSurveyID)
     {
-        $grouporder = 0;
+        $grouporder = 1;
         $orgdata = $this->getOrgdata();
         foreach ($orgdata as $ID => $parent) {
             if ($parent == 'root' && $ID[0] == 'g') {
@@ -1587,6 +1670,47 @@ class SurveyAdmin extends Survey_Common_Action
     /**
      * @param Survey $survey
      * @return array
+     * tab_edit_view_datasecurity
+     * editDataSecurityLocalSettings_view
+     */
+    private function _getDataSecurityEditData($survey)
+    {
+        Yii::app()->loadHelper("admin/htmleditor");
+        $aData = $aTabTitles = $aTabContents = array();
+
+        $aData['scripts'] = PrepareEditorScript(false, $this->getController());
+        $aLanguageData = [];
+
+        foreach ($survey->allLanguages as $i => $sLang) {
+            $aLanguageData = $this->_getGeneralTemplateData($survey->sid);
+            // this one is created to get the right default texts fo each language
+            Yii::app()->loadHelper('database');
+            Yii::app()->loadHelper('surveytranslator');
+
+            $aSurveyLanguageSettings = SurveyLanguageSetting::model()->findByPk(array('surveyls_survey_id' => $survey->sid, 'surveyls_language' => $sLang))->getAttributes();
+
+            $aTabTitles[$sLang] = getLanguageNameFromCode($aSurveyLanguageSettings['surveyls_language'], false);
+
+            if ($aSurveyLanguageSettings['surveyls_language'] == $survey->language) {
+                $aTabTitles[$sLang] .= ' ('.gT("Base language").')';
+            }
+
+            $aLanguageData['aSurveyLanguageSettings'] = $aSurveyLanguageSettings;
+            $aLanguageData['action'] = "surveygeneralsettings";
+            $aLanguageData['subaction'] = gT('Add a new question');
+            $aLanguageData['i'] = $i;
+            $aLanguageData['dateformatdetails'] = getDateFormatData(Yii::app()->session['dateformat']);
+            $aLanguageData['oSurvey'] = $survey;
+            $aTabContents[$sLang] = $this->getController()->renderPartial('/admin/survey/editDataSecurityLocalSettings_view', $aLanguageData, true);
+        }
+
+        $aData['aTabContents'] = $aTabContents;
+        $aData['aTabTitles'] = $aTabTitles;
+        return $aData;
+    }
+    /**
+     * @param Survey $survey
+     * @return array
      */
     private function _getTextEditData($survey)
     {
@@ -1654,25 +1778,25 @@ class SurveyAdmin extends Survey_Common_Action
         return $aData;
     }
 
-    /** 
-     * 
-     * survey::_pluginTabSurvey() 
-     * Load "Simple Plugin" page in specific survey. 
-     * @param Survey $survey 
-     * @return mixed 
-     * 
+    /**
+     *
+     * survey::_pluginTabSurvey()
+     * Load "Simple Plugin" page in specific survey.
+     * @param Survey $survey
+     * @return mixed
+     *
      * This method is called via call_user_func in self::rendersidemenulink()
      * @SuppressWarnings(PHPMD.UnusedPrivateMethod)
-     */ 
-    private function _pluginTabSurvey($survey) 
-    { 
-        $aData = array(); 
-        $beforeSurveySettings = new PluginEvent('beforeSurveySettings'); 
-        $beforeSurveySettings->set('survey', $survey->sid); 
-        App()->getPluginManager()->dispatchEvent($beforeSurveySettings); 
-        $aData['pluginSettings'] = $beforeSurveySettings->get('surveysettings'); 
-        return $aData; 
-    } 
+     */
+    private function _pluginTabSurvey($survey)
+    {
+        $aData = array();
+        $beforeSurveySettings = new PluginEvent('beforeSurveySettings');
+        $beforeSurveySettings->set('survey', $survey->sid);
+        App()->getPluginManager()->dispatchEvent($beforeSurveySettings);
+        $aData['pluginSettings'] = $beforeSurveySettings->get('surveysettings');
+        return $aData;
+    }
     /**
      * survey::_tabPresentationNavigation()
      * Load "Presentation & navigation" tab.
@@ -1762,7 +1886,7 @@ class SurveyAdmin extends Survey_Common_Action
         global $sCKEditorURL;
 
         // TAB Uploaded Resources Management
-        $ZIPimportAction = " onclick='if (validatefilename(this.form,\"".gT('Please select a file to import!', 'js')."\")) { this.form.submit();}'";
+        $ZIPimportAction = " onclick='if (window.LS.validatefilename(this.form,\"".gT('Please select a file to import!', 'js')."\")) { this.form.submit();}'";
         if (!function_exists("zip_open")) {
             $ZIPimportAction = " onclick='alert(\"".gT("The ZIP library is not activated in your PHP configuration thus importing ZIP files is currently disabled.", "js")."\");'";
         }
@@ -2147,5 +2271,118 @@ class SurveyAdmin extends Survey_Common_Action
     protected function _renderWrappedTemplate($sAction = 'survey', $aViewUrls = array(), $aData = array(), $sRenderFile = false)
     {
         parent::_renderWrappedTemplate($sAction, $aViewUrls, $aData, $sRenderFile);
+    }
+
+    /**
+     * Apply current theme options for imported survey theme
+     *
+     * @param integer $iSurveyID  The survey ID of imported survey
+     */
+    public function applythemeoptions($iSurveyID = 0)
+    {
+        if ((int)$iSurveyID > 0 && Yii::app()->request->isPostRequest) {
+            $oSurvey = Survey::model()->findByPk($iSurveyID);
+            $sTemplateName = $oSurvey->template;
+            $aThemeOptions = json_decode(App()->request->getPost('themeoptions', ''));
+
+            if (!empty($aThemeOptions)){
+                $oSurveyConfig = TemplateConfiguration::getInstance($sTemplateName, null, $iSurveyID);
+                if ($oSurveyConfig->options === 'inherit'){
+                    $oSurveyConfig->setOptionKeysToInherit();
+                }
+
+                foreach ($aThemeOptions as $key => $value) {
+                        $oSurveyConfig->setOption($key, $value);
+                }
+
+                $oSurveyConfig->save();
+            }
+        }
+        $this->getController()->redirect(array('admin/survey/sa/view/surveyid/'.$iSurveyID));
+    }
+
+    /**
+     * Upload an image in directory
+     * @return json
+     */
+    public function uploadimagefile()
+    {
+        $iSurveyID = Yii::app()->request->getPost('surveyid');
+        $success = false;
+        $debug = [];
+        if(!Permission::model()->hasSurveyPermission($iSurveyID, 'surveycontent', 'update')) {
+            return Yii::app()->getController()->renderPartial(
+                '/admin/super/_renderJson',
+                array('data' => ['success' => $success, 'message' => gT("You don't have sufficient permissions to upload images in this survey"), 'debug' => $debug]),
+                false,
+                false
+            );
+        }
+        $debug[] = $_FILES;
+        if(empty($_FILES)) {
+            $uploadresult = gT("No file was uploaded.");
+            return Yii::app()->getController()->renderPartial(
+                '/admin/super/_renderJson',
+                array('data' => ['success' => $success, 'message' => $uploadresult, 'debug' => $debug]),
+                false,
+                false
+            );
+        }
+        if ($_FILES['file']['error'] == 1 || $_FILES['file']['error'] == 2) {
+            $uploadresult = sprintf(gT("Sorry, this file is too large. Only files up to %01.2f MB are allowed."), getMaximumFileUploadSize() / 1024 / 1024);
+            return Yii::app()->getController()->renderPartial(
+                '/admin/super/_renderJson',
+                array('data' => ['success' => $success, 'message' => $uploadresult, 'debug' => $debug]),
+                false,
+                false
+            );
+        }
+        $checkImage = LSYii_ImageValidator::validateImage($_FILES["file"]["tmp_name"]);
+        if ($checkImage['check'] === false) {
+            return Yii::app()->getController()->renderPartial(
+                '/admin/super/_renderJson',
+                array('data' => ['success' => $success, 'message' => $checkImage['uploadresult'], 'debug' => $checkImage['debug']]),
+                false,
+                false
+            );
+        }
+        $surveyDir = Yii::app()->getConfig('uploaddir')."/surveys/".$iSurveyID;
+        if (!is_dir($surveyDir)) {
+            @mkdir($surveyDir);
+        }
+        if (!is_dir($surveyDir."/images")) {
+            @mkdir($surveyDir."/images");
+        }
+        $destdir = $surveyDir."/images/";
+        if (!is_writeable($destdir)) {
+            $uploadresult = sprintf(gT("Incorrect permissions in your %s folder."), $destdir);
+            return Yii::app()->getController()->renderPartial(
+                '/admin/super/_renderJson',
+                array('data' => ['success' => $success, 'message' => $uploadresult, 'debug' => $debug]),
+                false,
+                false
+            );
+        }
+
+        $filename = sanitize_filename($_FILES['file']['name'], false, false, false); // Don't force lowercase or alphanumeric
+        $fullfilepath = $destdir.$filename;
+        $debug[] = $destdir;
+        $debug[] = $filename;
+        $debug[] = $fullfilepath;
+        if (!@move_uploaded_file($_FILES['file']['tmp_name'], $fullfilepath)) {
+            $uploadresult = gT("An error occurred uploading your file. This may be caused by incorrect permissions for the application /tmp folder.");
+        } else {
+            $uploadresult = sprintf(gT("File %s uploaded"), $filename);
+            $success = true;
+        };
+        return Yii::app()->getController()->renderPartial(
+            '/admin/super/_renderJson',
+            array('data' => ['success' => $success, 'message' => $uploadresult, 'debug' => $debug]),
+            false,
+            false
+        );
+
+
+
     }
 }

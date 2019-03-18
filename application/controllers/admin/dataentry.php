@@ -320,11 +320,19 @@ class dataentry extends Survey_Common_Action
                     $targetResponse[$targetField] = $sourceResponse[$sourceField];
                 }
 
+                if (isset($targetSchema->columns['startdate']) && empty($targetResponse['startdate'])){
+                    $targetResponse['startdate'] = date("Y-m-d H:i", (int) mktime(0, 0, 0, 1, 1, 1980));
+                }
+
+                if (isset($targetSchema->columns['datestamp']) && empty($targetResponse['datestamp'])){
+                    $targetResponse['datestamp'] = date("Y-m-d H:i", (int) mktime(0, 0, 0, 1, 1, 1980));
+                }
+
                 $beforeDataEntryImport = new PluginEvent('beforeDataEntryImport');
                 $beforeDataEntryImport->set('iSurveyID', $iSurveyId);
                 $beforeDataEntryImport->set('oModel', $targetResponse);
                 App()->getPluginManager()->dispatchEvent($beforeDataEntryImport);
-
+ 
                 $imported++;
                 $targetResponse->save();
                 $aSRIDConversions[$iOldID] = $targetResponse->id;
@@ -484,7 +492,7 @@ class dataentry extends Survey_Common_Action
                 }
             } elseif ($subaction == "editsaved" && Permission::model()->hasSurveyPermission($surveyid, 'responses', 'update')) {
                 if (isset($_GET['public']) && $_GET['public'] == "true") {
-                    $password = md5(Yii::app()->request->getParam('accesscode'));
+                    $password = hash('sha256',Yii::app()->request->getParam('accesscode'));
                 } else {
                     $password = Yii::app()->request->getParam('accesscode');
                 }
@@ -621,7 +629,10 @@ class dataentry extends Survey_Common_Action
                         case "D": //DATE
                             $dateformatdetails = getDateFormatDataForQID($qidattributes, $surveyid);
                             if ($idrow[$fname['fieldname']] != '') {
-                                $datetimeobj = DateTime::createFromFormat("!Y-m-d H:i:s", $idrow[$fname['fieldname']]);
+                                $datetimeobj = DateTime::createFromFormat("Y-m-d H:i:s", $idrow[$fname['fieldname']]);
+                                if($datetimeobj == null) { //MSSQL uses microseconds by default in any datetime object
+                                    $datetimeobj = DateTime::createFromFormat("Y-m-d H:i:s.u", $idrow[$fname['fieldname']]);
+                                }
                                 $thisdate = $datetimeobj->format($dateformatdetails['phpdate']);
                             } else {
                                 $thisdate = '';
@@ -634,7 +645,7 @@ class dataentry extends Survey_Common_Action
                                 array(
                                 'class' => 'popupdate',
                                 'size' => '12',
-                                'onkeypress' => 'return goodchars(event,\''.$goodchars.'\')'
+                                'onkeypress' => 'return window.LS.goodchars(event,\''.$goodchars.'\')'
                                 )
                                 );
                                 /*
@@ -666,7 +677,7 @@ class dataentry extends Survey_Common_Action
                                 $aDataentryoutput .= CHtml::hiddenField('dateformat'.$fname['fieldname'], $dateformatdetails['jsdate'],
                                 array('id' => "dateformat{$fname['fieldname']}")
                                 );
-                                // $aDataentryoutput .= "\t<input type='text' class='popupdate' size='12' name='{$fname['fieldname']}' value='{$thisdate}' onkeypress=\"return goodchars(event,'".$goodchars."')\"/>\n";
+                                // $aDataentryoutput .= "\t<input type='text' class='popupdate' size='12' name='{$fname['fieldname']}' value='{$thisdate}' onkeypress=\"return window.LS.goodchars(event,'".$goodchars."')\"/>\n";
                                 // $aDataentryoutput .= "\t<input type='hidden' name='dateformat{$fname['fieldname']}' id='dateformat{$fname['fieldname']}' value='{$dateformatdetails['jsdate']}'  />\n";
                             } else {
                                 $aDataentryoutput .= CHtml::textField($fname['fieldname'], $thisdate);
@@ -963,7 +974,7 @@ class dataentry extends Survey_Common_Action
                             break;
                         case "N": //NUMERICAL TEXT
                             $aDataentryoutput .= "\t<input type='text' name='{$fname['fieldname']}' value='{$idrow[$fname['fieldname']]}' "
-                            ."onkeypress=\"return goodchars(event,'0123456789.,')\" />\n";
+                            ."onkeypress=\"return window.LS.goodchars(event,'0123456789.,')\" />\n";
                             break;
                         case "S": //SHORT FREE TEXT
                             $aDataentryoutput .= "\t<input type='text' name='{$fname['fieldname']}' value='"
@@ -1522,20 +1533,22 @@ class dataentry extends Survey_Common_Action
                                 $json = $_POST[$fieldname];
                                 $phparray = json_decode(stripslashes($json));
                                 $filecount = 0;
-                                $iArrayCount = count($phparray);
-                                for ($i = 0; $filecount < $iArrayCount; $i++) {
-                                    if ($_FILES[$fieldname."_file_".$i]['error'] != 4) {
-                                        $target = Yii::app()->getConfig('uploaddir')."/surveys/".$thissurvey['sid']."/files/".randomChars(20);
-                                        $size = 0.001 * $_FILES[$fieldname."_file_".$i]['size'];
-                                        $name = rawurlencode($_FILES[$fieldname."_file_".$i]['name']);
+                                if (is_array($phparray)){
+                                    $iArrayCount = count($phparray);
+                                    for ($i = 0; $filecount < $iArrayCount; $i++) {
+                                        if ($_FILES[$fieldname."_file_".$i]['error'] != 4) {
+                                            $target = Yii::app()->getConfig('uploaddir')."/surveys/".$thissurvey['sid']."/files/".randomChars(20);
+                                            $size = 0.001 * $_FILES[$fieldname."_file_".$i]['size'];
+                                            $name = rawurlencode($_FILES[$fieldname."_file_".$i]['name']);
 
-                                        if (move_uploaded_file($_FILES[$fieldname."_file_".$i]['tmp_name'], $target)) {
-                                            $phparray[$filecount]->filename = basename($target);
-                                            $phparray[$filecount]->name = $name;
-                                            $phparray[$filecount]->size = $size;
-                                            $pathinfo = pathinfo($_FILES[$fieldname."_file_".$i]['name']);
-                                            $phparray[$filecount]->ext = $pathinfo['extension'];
-                                            $filecount++;
+                                            if (move_uploaded_file($_FILES[$fieldname."_file_".$i]['tmp_name'], $target)) {
+                                                $phparray[$filecount]->filename = basename($target);
+                                                $phparray[$filecount]->name = $name;
+                                                $phparray[$filecount]->size = $size;
+                                                $pathinfo = pathinfo($_FILES[$fieldname."_file_".$i]['name']);
+                                                $phparray[$filecount]->ext = $pathinfo['extension'];
+                                                $filecount++;
+                                            }
                                         }
                                     }
                                 }
@@ -1543,7 +1556,11 @@ class dataentry extends Survey_Common_Action
                                 $insert_data[$fieldname] = ls_json_encode($phparray);
 
                             } else {
-                                $insert_data[$fieldname] = count($phparray);
+                                if (is_array($phparray)){
+                                    $insert_data[$fieldname] = count($phparray);
+                                } else {
+                                    $insert_data[$fieldname] = 0;
+                                }
                             }
                         } elseif ($irow['type'] == 'D') {
                             $qidattributes = QuestionAttribute::model()->getQuestionAttributes($irow['qid']);
@@ -1952,7 +1969,7 @@ class dataentry extends Survey_Common_Action
                             if (trim($qidattributes['display_columns']) != '') {
                                 $dcols = $qidattributes['display_columns'];
                             } else {
-                                $dcols = 0;
+                                $dcols = 1;
                             }
                             $meaquery = "SELECT title, question FROM {{questions}} WHERE parent_qid={$deqrow['qid']} AND language='{$sDataEntryLanguage}' ORDER BY question_order";
                             $mearesult = dbExecuteAssoc($meaquery);

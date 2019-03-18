@@ -2,8 +2,9 @@
 /**
  * Set question group and position modal body (parsed to massive action widget)
  */
+$surveyid = App()->request->getParam('surveyid', 0);
 ?>
-<form class="custom-modal-datas">
+<form class="custom-modal-datas form-horizontal">
     <div id='MandatorySelection' class="form-group">
         <label class="col-sm-4 control-label"><?php eT("Mandatory:"); ?></label>
         <div class="col-sm-8">
@@ -22,7 +23,7 @@
                 'offLabel'=>gT('Off')));
             ?>
 
-            <input type="hidden" name="sid" value="<?php echo $_GET['surveyid']; ?>" class="custom-data"/>
+            <input type="hidden" name="sid" value="<?php echo $surveyid; ?>" class="custom-data"/>
         </div>
     </div>
 </form>
